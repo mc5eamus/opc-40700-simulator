@@ -44,7 +44,7 @@ equipment and data points.
 
 Key DI elements:
 - **DeviceSet** folder under Objects containing discoverable devices
-- **DeviceType** type definition for the device instance
+- **OPC40700DeviceType** type definition inheriting from DI **DeviceType**
 - Standard DI properties: Manufacturer, Model, SerialNumber, HardwareRevision, SoftwareRevision, DeviceManual, DeviceClass
 
 ## Quick Start

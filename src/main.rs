@@ -114,12 +114,56 @@ fn main() {
             .is_abstract(false)
             .insert(&mut as_ref);
 
-        // --- DI Namespace: DeviceSet folder under Objects ---
-        let device_set_id = NodeId::new(di_ns, "DeviceSet");
+        // --- DI Namespace: DeviceSet folder under Objects (DI: i=5001) ---
+        let device_set_id = NodeId::new(di_ns, 5001u32);
         ObjectBuilder::new(&device_set_id, "DeviceSet", "DeviceSet")
             .is_folder()
             .organized_by(NodeId::objects_folder_id())
             .insert(&mut as_ref);
+
+        // OPC 40700 specific type inheriting from DI DeviceType
+        let opc40700_device_type_id = NodeId::new(ns, "OPC40700DeviceType");
+        ObjectTypeBuilder::new(
+            &opc40700_device_type_id,
+            "OPC40700DeviceType",
+            "OPC40700DeviceType",
+        )
+        .subtype_of(device_type_id.clone())
+        .is_abstract(false)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "OPC40700DeviceType_Manufacturer"),
+            "Manufacturer",
+            "Manufacturer",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from(""))
+        .property_of(opc40700_device_type_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "OPC40700DeviceType_Model"),
+            "Model",
+            "Model",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from(""))
+        .property_of(opc40700_device_type_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "OPC40700DeviceType_SerialNumber"),
+            "SerialNumber",
+            "SerialNumber",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from(""))
+        .property_of(opc40700_device_type_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
 
         // --- DI Device instance: SurfaceTechnologyDevice ---
         let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
@@ -128,7 +172,7 @@ fn main() {
             "SurfaceTechnologyDevice",
             "Surface Technology System ST-SIM-1000",
         )
-        .has_type_definition(device_type_id.clone())
+        .has_type_definition(opc40700_device_type_id.clone())
         .organized_by(device_set_id.clone())
         .insert(&mut as_ref);
 
