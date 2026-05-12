@@ -1,0 +1,17 @@
+{
+  "name": "opc-40700-test-client",
+  "version": "1.0.0",
+  "description": "OPC UA test client for OPC 40700 Surface Technology Simulator",
+  "private": true,
+  "scripts": {
+    "start": "ts-node src/client.ts"
+  },
+  "dependencies": {
+    "node-opcua": "^2.170.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

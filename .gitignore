@@ -27,3 +27,7 @@ target
 # Added by cargo
 
 /target
+
+# Node.js (test-client)
+test-client/node_modules/
+test-client/dist/
