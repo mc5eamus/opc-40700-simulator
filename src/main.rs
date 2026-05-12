@@ -88,7 +88,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     let topology_element_type_id = NodeId::new(di_ns, 1001u32);
     ObjectTypeBuilder::new(
         &topology_element_type_id,
-        "TopologyElementType",
+        QualifiedName::new(di_ns, "TopologyElementType"),
         "TopologyElementType",
     )
     .subtype_of(ObjectTypeId::BaseObjectType)
@@ -97,23 +97,31 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     // DeviceType (DI ns, i=1002) - subtype of TopologyElementType
     let device_type_id = NodeId::new(di_ns, 1002u32);
-    ObjectTypeBuilder::new(&device_type_id, "DeviceType", "DeviceType")
-        .subtype_of(topology_element_type_id.clone())
-        .is_abstract(false)
-        .insert(as_ref);
+    ObjectTypeBuilder::new(
+        &device_type_id,
+        QualifiedName::new(di_ns, "DeviceType"),
+        "DeviceType",
+    )
+    .subtype_of(topology_element_type_id.clone())
+    .is_abstract(false)
+    .insert(as_ref);
 
     // --- DI Namespace: DeviceSet folder under Objects (DI: i=5001) ---
     let device_set_id = NodeId::new(di_ns, 5001u32);
-    ObjectBuilder::new(&device_set_id, "DeviceSet", "DeviceSet")
-        .is_folder()
-        .organized_by(NodeId::objects_folder_id())
-        .insert(as_ref);
+    ObjectBuilder::new(
+        &device_set_id,
+        QualifiedName::new(di_ns, "DeviceSet"),
+        "DeviceSet",
+    )
+    .is_folder()
+    .organized_by(NodeId::objects_folder_id())
+    .insert(as_ref);
 
     // OPC 40700 specific type inheriting from DI DeviceType
     let opc40700_device_type_id = NodeId::new(ns, "OPC40700DeviceType");
     ObjectTypeBuilder::new(
         &opc40700_device_type_id,
-        "OPC40700DeviceType",
+        QualifiedName::new(ns, "OPC40700DeviceType"),
         "OPC40700DeviceType",
     )
     .subtype_of(device_type_id.clone())
@@ -122,7 +130,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     VariableBuilder::new(
         &NodeId::new(ns, "OPC40700DeviceType_Manufacturer"),
-        "Manufacturer",
+        QualifiedName::new(di_ns, "Manufacturer"),
         "Manufacturer",
     )
     .data_type(DataTypeId::String)
@@ -133,7 +141,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     VariableBuilder::new(
         &NodeId::new(ns, "OPC40700DeviceType_Model"),
-        "Model",
+        QualifiedName::new(di_ns, "Model"),
         "Model",
     )
     .data_type(DataTypeId::String)
@@ -144,7 +152,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     VariableBuilder::new(
         &NodeId::new(ns, "OPC40700DeviceType_SerialNumber"),
-        "SerialNumber",
+        QualifiedName::new(di_ns, "SerialNumber"),
         "SerialNumber",
     )
     .data_type(DataTypeId::String)
@@ -157,7 +165,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
     ObjectBuilder::new(
         &device_id,
-        "SurfaceTechnologyDevice",
+        QualifiedName::new(ns, "SurfaceTechnologyDevice"),
         "Surface Technology System ST-SIM-1000",
     )
     .has_type_definition(opc40700_device_type_id.clone())
@@ -167,7 +175,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     // DI-standard properties on the device instance
     VariableBuilder::new(
         &NodeId::new(ns, "DI_Manufacturer"),
-        "Manufacturer",
+        QualifiedName::new(di_ns, "Manufacturer"),
         "Manufacturer",
     )
     .data_type(DataTypeId::String)
@@ -176,16 +184,20 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
 
-    VariableBuilder::new(&NodeId::new(ns, "DI_Model"), "Model", "Model")
-        .data_type(DataTypeId::String)
-        .value(UAString::from("ST-SIM-1000"))
-        .property_of(device_id.clone())
-        .has_type_definition(VariableTypeId::PropertyType)
-        .insert(as_ref);
+    VariableBuilder::new(
+        &NodeId::new(ns, "DI_Model"),
+        QualifiedName::new(di_ns, "Model"),
+        "Model",
+    )
+    .data_type(DataTypeId::String)
+    .value(UAString::from("ST-SIM-1000"))
+    .property_of(device_id.clone())
+    .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
 
     VariableBuilder::new(
         &NodeId::new(ns, "DI_SerialNumber"),
-        "SerialNumber",
+        QualifiedName::new(di_ns, "SerialNumber"),
         "SerialNumber",
     )
     .data_type(DataTypeId::String)
@@ -196,7 +208,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     VariableBuilder::new(
         &NodeId::new(ns, "DI_HardwareRevision"),
-        "HardwareRevision",
+        QualifiedName::new(di_ns, "HardwareRevision"),
         "HardwareRevision",
     )
     .data_type(DataTypeId::String)
@@ -207,7 +219,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     VariableBuilder::new(
         &NodeId::new(ns, "DI_SoftwareRevision"),
-        "SoftwareRevision",
+        QualifiedName::new(di_ns, "SoftwareRevision"),
         "SoftwareRevision",
     )
     .data_type(DataTypeId::String)
@@ -218,7 +230,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     VariableBuilder::new(
         &NodeId::new(ns, "DI_DeviceManual"),
-        "DeviceManual",
+        QualifiedName::new(di_ns, "DeviceManual"),
         "DeviceManual",
     )
     .data_type(DataTypeId::String)
@@ -229,7 +241,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
 
     VariableBuilder::new(
         &NodeId::new(ns, "DI_DeviceClass"),
-        "DeviceClass",
+        QualifiedName::new(di_ns, "DeviceClass"),
         "DeviceClass",
     )
     .data_type(DataTypeId::String)
@@ -242,7 +254,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     let system_folder_id = NodeId::new(ns, "SurfaceTechnologySystem");
     ObjectBuilder::new(
         &system_folder_id,
-        "SurfaceTechnologySystem",
+        QualifiedName::new(ns, "SurfaceTechnologySystem"),
         "SurfaceTechnologySystem",
     )
     .is_folder()
@@ -877,5 +889,78 @@ mod tests {
         assert!(THICKNESS_MIN < TARGET_THICKNESS && TARGET_THICKNESS < THICKNESS_MAX);
         assert!(SPRAY_PRESSURE_MIN < TARGET_SPRAY_PRESSURE && TARGET_SPRAY_PRESSURE < SPRAY_PRESSURE_MAX);
         assert!(CONVEYOR_MIN < TARGET_CONVEYOR_SPEED && TARGET_CONVEYOR_SPEED < CONVEYOR_MAX);
+    }
+
+    // ── BrowseName namespace tests ───────────────────────────────────────────
+
+    #[test]
+    fn di_nodes_have_browse_names_in_di_namespace() {
+        let (address_space, _ns, di_ns) = setup();
+        // DeviceSet, TopologyElementType, DeviceType should have BrowseNames in DI namespace
+        let checks: Vec<(NodeId, &str)> = vec![
+            (NodeId::new(di_ns, 5001u32), "DeviceSet"),
+            (NodeId::new(di_ns, 1001u32), "TopologyElementType"),
+            (NodeId::new(di_ns, 1002u32), "DeviceType"),
+        ];
+        for (node_id, expected_name) in &checks {
+            let node = address_space.find_node(node_id).expect(&format!(
+                "Node {} must exist",
+                expected_name
+            ));
+            let browse_name = node.as_node().browse_name();
+            assert_eq!(
+                browse_name.namespace_index, di_ns,
+                "BrowseName of {} must be in DI namespace (ns={}), got ns={}",
+                expected_name, di_ns, browse_name.namespace_index
+            );
+            assert_eq!(
+                browse_name.name.as_ref(),
+                *expected_name,
+                "BrowseName of {} must have name '{}'",
+                expected_name, expected_name
+            );
+        }
+    }
+
+    #[test]
+    fn device_instance_has_browse_name_in_app_namespace() {
+        let (address_space, ns, _di_ns) = setup();
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        let node = address_space.find_node(&device_id).unwrap();
+        let browse_name = node.as_node().browse_name();
+        assert_eq!(
+            browse_name.namespace_index, ns,
+            "SurfaceTechnologyDevice BrowseName must be in app namespace (ns={})",
+            ns
+        );
+    }
+
+    #[test]
+    fn di_properties_have_browse_names_in_di_namespace() {
+        let (address_space, ns, di_ns) = setup();
+        let prop_checks = vec![
+            ("DI_Manufacturer", "Manufacturer"),
+            ("DI_Model", "Model"),
+            ("DI_SerialNumber", "SerialNumber"),
+        ];
+        for (node_str_id, expected_name) in &prop_checks {
+            let node_id = NodeId::new(ns, *node_str_id);
+            let node = address_space.find_node(&node_id).expect(&format!(
+                "Node {} must exist",
+                node_str_id
+            ));
+            let browse_name = node.as_node().browse_name();
+            assert_eq!(
+                browse_name.namespace_index, di_ns,
+                "BrowseName of {} must be in DI namespace (ns={}), got ns={}",
+                node_str_id, di_ns, browse_name.namespace_index
+            );
+            assert_eq!(
+                browse_name.name.as_ref(),
+                *expected_name,
+                "BrowseName.name of {} must be '{}'",
+                node_str_id, expected_name
+            );
+        }
     }
 }
