@@ -8,6 +8,7 @@ An OPC UA simulator implementing the [OPC 40700 Surface Technology – General T
 - Simulated surface technology system with temperature, pressure, flow, and coating controllers
 - Job management with progress tracking
 - Realistic telemetry via random-walk simulation updated every second
+- **OPC UA DI (Device Integration) namespace** (`http://opcfoundation.org/UA/DI/`) for auto-discovery
 - Anonymous connections (no auth required)
 - Auto-generated self-signed certificates
 
@@ -15,7 +16,16 @@ An OPC UA simulator implementing the [OPC 40700 Surface Technology – General T
 
 ```
 Objects/
-└── SurfaceTechnologySystem/
+├── DeviceSet/                          (DI namespace - for auto-discovery)
+│   └── SurfaceTechnologyDevice/        (DeviceType instance)
+│       ├── Manufacturer                "OPC40700 Simulator Corp"
+│       ├── Model                       "ST-SIM-1000"
+│       ├── SerialNumber                "SN-2024-40700-001"
+│       ├── HardwareRevision            "1.0"
+│       ├── SoftwareRevision            "1.0.0"
+│       ├── DeviceManual                (URL)
+│       └── DeviceClass                 "Surface Treatment Equipment"
+└── SurfaceTechnologySystem/            (component of device)
     ├── SystemIdentification/   (Manufacturer, Model, SerialNumber, …)
     ├── TemperatureController/  (CurrentTemperature, TargetTemperature, HeatingPower, …)
     ├── PressureController/     (CurrentPressure, TargetPressure, ValvePosition, …)
@@ -23,6 +33,18 @@ Objects/
     ├── CoatingUnit/            (CoatingThickness, SprayPressure, ConveyorSpeed, …)
     └── JobManagement/          (CurrentJobId, JobStatus, PartsProcessed, JobProgress, …)
 ```
+
+### DI Namespace Support
+
+The simulator implements the OPC UA DI (Device Integration) companion specification
+namespace (`http://opcfoundation.org/UA/DI/`). This enables automatic asset discovery
+by tools like Azure IoT Operations (AIO) that rely on the DI specification to identify
+equipment and data points.
+
+Key DI elements:
+- **DeviceSet** folder under Objects containing discoverable devices
+- **DeviceType** type definition for the device instance
+- Standard DI properties: Manufacturer, Model, SerialNumber, HardwareRevision, SoftwareRevision, DeviceManual, DeviceClass
 
 ## Quick Start
 

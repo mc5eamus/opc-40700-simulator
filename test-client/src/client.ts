@@ -16,6 +16,7 @@ import {
 
 const ENDPOINT_URL = "opc.tcp://localhost:5000";
 const NAMESPACE_URI = "urn:opc40700:surface-technology";
+const DI_NAMESPACE_URI = "http://opcfoundation.org/UA/DI/";
 
 // Variables to subscribe to for live monitoring
 const MONITORED_VARIABLES = [
@@ -157,6 +158,26 @@ async function browseAddressSpace(session: ClientSession): Promise<void> {
   await browseTree(session, stFolder.nodeId.toString(), 1);
 }
 
+async function browseDIDeviceSet(session: ClientSession): Promise<void> {
+  header("PHASE 2b: DI DeviceSet Discovery");
+
+  // Find the DeviceSet folder under Objects
+  const objectsFolder = "ns=0;i=85"; // Objects folder
+  const browseResult = await session.browse(objectsFolder as BrowseDescriptionLike);
+
+  const deviceSetFolder = browseResult.references?.find(
+    (r) => r.browseName.name === "DeviceSet"
+  );
+
+  if (!deviceSetFolder) {
+    console.log("  ⚠ DeviceSet folder not found under Objects!");
+    return;
+  }
+
+  console.log(`\n📁 DeviceSet  (${deviceSetFolder.nodeId.toString()})`);
+  await browseTree(session, deviceSetFolder.nodeId.toString(), 1);
+}
+
 // ── Read ─────────────────────────────────────────────────────────────
 
 async function readAllVariables(
@@ -288,8 +309,19 @@ async function main() {
   }
   console.log(`  Namespace '${NAMESPACE_URI}' → index ${nsIndex}`);
 
-  // ── Phase 2: Browse ──
+  // Verify DI namespace presence
+  const diNsIndex = nsArray.indexOf(DI_NAMESPACE_URI);
+  if (diNsIndex < 0) {
+    console.error(`  ⚠ DI Namespace '${DI_NAMESPACE_URI}' not found! Available: ${nsArray.join(", ")}`);
+  } else {
+    console.log(`  DI Namespace '${DI_NAMESPACE_URI}' → index ${diNsIndex}`);
+  }
+
+  // ── Phase 2: Browse (includes DI DeviceSet) ──
   await browseAddressSpace(session);
+  if (diNsIndex >= 0) {
+    await browseDIDeviceSet(session);
+  }
 
   // ── Phase 3: Read ──
   await readAllVariables(session, nsIndex);

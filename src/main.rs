@@ -74,13 +74,17 @@ fn main() {
         .server()
         .unwrap();
 
-    // Register namespace
-    let ns = {
+    // Register namespaces
+    let (ns, di_ns) = {
         let address_space = server.address_space();
         let mut address_space = address_space.write();
-        address_space
+        let di_ns = address_space
+            .register_namespace("http://opcfoundation.org/UA/DI/")
+            .unwrap();
+        let ns = address_space
             .register_namespace("urn:opc40700:surface-technology")
-            .unwrap()
+            .unwrap();
+        (ns, di_ns)
     };
 
     // Build address space
@@ -88,14 +92,129 @@ fn main() {
     {
         let mut as_ref = address_space.write();
 
-        // Top-level folder
-        let system_folder = as_ref
-            .add_folder(
-                "SurfaceTechnologySystem",
-                "SurfaceTechnologySystem",
-                &NodeId::objects_folder_id(),
-            )
-            .unwrap();
+        // --- DI Namespace: Object Types ---
+        // TopologyElementType (DI ns, i=1001)
+        let topology_element_type_id = NodeId::new(di_ns, 1001u32);
+        ObjectBuilder::new(
+            &topology_element_type_id,
+            "TopologyElementType",
+            "TopologyElementType",
+        )
+        .has_type_definition(ObjectTypeId::BaseObjectType)
+        .organized_by(NodeId::new(0, 88u32)) // ObjectTypes folder -> BaseObjectType
+        .insert(&mut as_ref);
+
+        // DeviceType (DI ns, i=1002) - subtype of TopologyElementType
+        let device_type_id = NodeId::new(di_ns, 1002u32);
+        ObjectBuilder::new(&device_type_id, "DeviceType", "DeviceType")
+            .has_type_definition(ObjectTypeId::BaseObjectType)
+            .organized_by(NodeId::new(0, 88u32))
+            .insert(&mut as_ref);
+
+        // --- DI Namespace: DeviceSet folder under Objects ---
+        let device_set_id = NodeId::new(di_ns, "DeviceSet");
+        ObjectBuilder::new(&device_set_id, "DeviceSet", "DeviceSet")
+            .is_folder()
+            .organized_by(NodeId::objects_folder_id())
+            .insert(&mut as_ref);
+
+        // --- DI Device instance: SurfaceTechnologyDevice ---
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        ObjectBuilder::new(
+            &device_id,
+            "SurfaceTechnologyDevice",
+            "Surface Technology System ST-SIM-1000",
+        )
+        .has_type_definition(device_type_id.clone())
+        .organized_by(device_set_id.clone())
+        .insert(&mut as_ref);
+
+        // DI-standard properties on the device (using DI namespace-qualified browse names)
+        VariableBuilder::new(
+            &NodeId::new(ns, "DI_Manufacturer"),
+            "Manufacturer",
+            "Manufacturer",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from("OPC40700 Simulator Corp"))
+        .property_of(device_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(&NodeId::new(ns, "DI_Model"), "Model", "Model")
+            .data_type(DataTypeId::String)
+            .value(UAString::from("ST-SIM-1000"))
+            .property_of(device_id.clone())
+            .has_type_definition(VariableTypeId::PropertyType)
+            .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "DI_SerialNumber"),
+            "SerialNumber",
+            "SerialNumber",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from("SN-2024-40700-001"))
+        .property_of(device_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "DI_HardwareRevision"),
+            "HardwareRevision",
+            "HardwareRevision",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from("1.0"))
+        .property_of(device_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "DI_SoftwareRevision"),
+            "SoftwareRevision",
+            "SoftwareRevision",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from("1.0.0"))
+        .property_of(device_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "DI_DeviceManual"),
+            "DeviceManual",
+            "DeviceManual",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from("https://github.com/mc5eamus/opc-40700-simulator"))
+        .property_of(device_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        VariableBuilder::new(
+            &NodeId::new(ns, "DI_DeviceClass"),
+            "DeviceClass",
+            "DeviceClass",
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from("Surface Treatment Equipment"))
+        .property_of(device_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(&mut as_ref);
+
+        // --- Original address space: Top-level folder (now also linked as component of device) ---
+        let system_folder_id = NodeId::new(ns, "SurfaceTechnologySystem");
+        ObjectBuilder::new(
+            &system_folder_id,
+            "SurfaceTechnologySystem",
+            "SurfaceTechnologySystem",
+        )
+        .is_folder()
+        .organized_by(NodeId::objects_folder_id())
+        .component_of(device_id.clone())
+        .insert(&mut as_ref);
+        let system_folder = system_folder_id;
 
         // --- SystemIdentification ---
         let id_folder = as_ref
