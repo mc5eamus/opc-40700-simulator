@@ -258,7 +258,6 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         "SurfaceTechnologySystem",
     )
     .is_folder()
-    .organized_by(NodeId::objects_folder_id())
     .component_of(device_id.clone())
     .insert(as_ref);
     let system_folder = system_folder_id;
@@ -492,6 +491,42 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         ],
         &job_folder,
     );
+
+    // Ensure all process variables are explicitly typed for discovery tooling.
+    for variable_name in [
+        "Manufacturer",
+        "Model",
+        "SerialNumber",
+        "SoftwareVersion",
+        "SystemState",
+        "CurrentTemperature",
+        "TargetTemperature",
+        "TC_HeatingPower",
+        "TC_ControllerState",
+        "CurrentPressure",
+        "TargetPressure",
+        "PC_ValvePosition",
+        "PC_ControllerState",
+        "CurrentFlowRate",
+        "TargetFlowRate",
+        "FC_PumpSpeed",
+        "FC_ControllerState",
+        "CoatingThickness",
+        "TargetThickness",
+        "SprayPressure",
+        "ConveyorSpeed",
+        "CU_UnitState",
+        "CurrentJobId",
+        "JobStatus",
+        "PartsProcessed",
+        "TotalParts",
+        "JobProgress",
+    ] {
+        as_ref.set_node_type(
+            &NodeId::new(ns, variable_name),
+            &VariableTypeId::BaseDataVariableType,
+        );
+    }
 
     (ns, di_ns)
 }
@@ -864,6 +899,47 @@ mod tests {
                 name
             );
         }
+    }
+
+    #[test]
+    fn process_variables_have_base_data_variable_type_definition() {
+        let (address_space, ns, _di_ns) = setup();
+        let base_data_variable_type_id = NodeId::from(&VariableTypeId::BaseDataVariableType);
+        for variable_name in [
+            "CurrentTemperature",
+            "CurrentPressure",
+            "CurrentFlowRate",
+            "CoatingThickness",
+            "CurrentJobId",
+        ] {
+            let variable_id = NodeId::new(ns, variable_name);
+            assert!(
+                address_space.has_reference(
+                    &variable_id,
+                    &base_data_variable_type_id,
+                    ReferenceTypeId::HasTypeDefinition
+                ),
+                "Variable '{}' must have BaseDataVariableType",
+                variable_name
+            );
+        }
+    }
+
+    #[test]
+    fn surface_technology_system_is_only_under_device_instance() {
+        let (address_space, ns, _di_ns) = setup();
+        let system_id = NodeId::new(ns, "SurfaceTechnologySystem");
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        let objects_id = NodeId::objects_folder_id();
+
+        assert!(
+            address_space.has_reference(&device_id, &system_id, ReferenceTypeId::HasComponent),
+            "SurfaceTechnologyDevice must reference SurfaceTechnologySystem as a component"
+        );
+        assert!(
+            !address_space.has_reference(&objects_id, &system_id, ReferenceTypeId::Organizes),
+            "Objects folder must not directly organize SurfaceTechnologySystem"
+        );
     }
 
     // ── SimState tests ───────────────────────────────────────────────────────
