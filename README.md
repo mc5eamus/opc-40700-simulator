@@ -11,6 +11,7 @@ An OPC UA simulator implementing the [OPC 40700 Surface Technology – General T
 - **OPC UA DI (Device Integration) namespace** (`http://opcfoundation.org/UA/DI/`) for auto-discovery
 - Anonymous connections (no auth required)
 - Auto-generated self-signed certificates
+- Increased OPC UA message/chunk/receive buffer limits for secure AIO asset discovery payloads
 
 ## Address Space
 
