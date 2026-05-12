@@ -12,6 +12,7 @@ import {
   BrowseDescriptionLike,
   ReferenceDescription,
   StatusCodes,
+  BrowseDirection,
 } from "node-opcua";
 
 const ENDPOINT_URL = "opc.tcp://localhost:5000";
@@ -178,6 +179,116 @@ async function browseDIDeviceSet(session: ClientSession): Promise<void> {
   await browseTree(session, deviceSetFolder.nodeId.toString(), 1);
 }
 
+// ── FetchSubTypes simulation ──────────────────────────────────────────
+//
+// Simulates what AIO's FetchSubTypesAsync does:
+//  1. Reads the DeviceType node attributes by numeric DI node id (i=1002).
+//  2. Browses forward HasSubtype references to discover concrete device types.
+//  3. Reads each discovered subtype node to confirm it is accessible.
+//
+// If any ReadNode call returns BadNodeIdUnknown the phase throws, which
+// causes the test-client process to exit with a non-zero status and fails CI.
+async function fetchSubTypes(
+  session: ClientSession,
+  diNsIndex: number,
+  appNsIndex: number
+): Promise<void> {
+  header("PHASE 2c: FetchSubTypes Simulation (DI type resolution)");
+
+  // ── Step 1: ReadNode on DeviceType at nsu=DI;i=1002 ──────────────
+  const deviceTypeNodeId = `ns=${diNsIndex};i=1002`;
+  console.log(`\n  Reading DeviceType node  (${deviceTypeNodeId}) ...`);
+
+  const deviceTypeAttrs = await session.read([
+    { nodeId: deviceTypeNodeId, attributeId: AttributeIds.NodeClass },
+    { nodeId: deviceTypeNodeId, attributeId: AttributeIds.BrowseName },
+    { nodeId: deviceTypeNodeId, attributeId: AttributeIds.DisplayName },
+    { nodeId: deviceTypeNodeId, attributeId: AttributeIds.IsAbstract },
+  ]);
+
+  for (const dv of deviceTypeAttrs) {
+    if (dv.statusCode !== StatusCodes.Good) {
+      throw new Error(
+        `ReadNode on DeviceType (${deviceTypeNodeId}) returned ` +
+          `${dv.statusCode.toString()} — expected Good. ` +
+          `FetchSubTypes would fail with BadNodeIdUnknown.`
+      );
+    }
+  }
+
+  const nodeClassName = deviceTypeAttrs[0].value?.value;
+  const browseName = deviceTypeAttrs[1].value?.value;
+  const displayName = deviceTypeAttrs[2].value?.value;
+  console.log(`  ✓ DeviceType is readable`);
+  console.log(`    NodeClass   : ${nodeClassName}`);
+  console.log(`    BrowseName  : ${browseName}`);
+  console.log(`    DisplayName : ${displayName?.text ?? displayName}`);
+
+  // ── Step 2: Browse HasSubtype forward references from DeviceType ──
+  console.log(`\n  Browsing HasSubtype references from DeviceType ...`);
+
+  const subtypeBrowse = await session.browse({
+    nodeId: deviceTypeNodeId,
+    browseDirection: BrowseDirection.Forward,
+    referenceTypeId: "i=45",  // HasSubtype (OPC UA standard, ns=0;i=45)
+    includeSubtypes: false,
+    nodeClassMask: 0,
+    resultMask: 63,
+  });
+
+  const subtypes = subtypeBrowse.references ?? [];
+  console.log(`  Found ${subtypes.length} direct subtype(s):`);
+
+  if (subtypes.length === 0) {
+    throw new Error(
+      "DeviceType has no HasSubtype forward references — " +
+        "FetchSubTypes would return an empty type hierarchy."
+    );
+  }
+
+  // ── Step 3: ReadNode on each discovered subtype ───────────────────
+  for (const ref of subtypes) {
+    const subtypeId = ref.nodeId.toString();
+    const subtypeName = ref.browseName.toString();
+    console.log(`\n  Subtype: ${subtypeName}  (${subtypeId})`);
+
+    const subtypeAttrs = await session.read([
+      { nodeId: subtypeId, attributeId: AttributeIds.NodeClass },
+      { nodeId: subtypeId, attributeId: AttributeIds.BrowseName },
+      { nodeId: subtypeId, attributeId: AttributeIds.DisplayName },
+      { nodeId: subtypeId, attributeId: AttributeIds.IsAbstract },
+    ]);
+
+    for (const dv of subtypeAttrs) {
+      if (dv.statusCode !== StatusCodes.Good) {
+        throw new Error(
+          `ReadNode on subtype ${subtypeName} (${subtypeId}) returned ` +
+            `${dv.statusCode.toString()} — expected Good. ` +
+            `FetchSubTypes would fail with BadNodeIdUnknown.`
+        );
+      }
+    }
+
+    console.log(`  ✓ ${subtypeName} is readable`);
+  }
+
+  // ── Step 4: Verify OPC40700DeviceType is among the subtypes ──────
+  const opc40700Type = subtypes.find(
+    (r) => r.browseName.name === "OPC40700DeviceType"
+  );
+
+  if (!opc40700Type) {
+    throw new Error(
+      "OPC40700DeviceType not found as a HasSubtype of DeviceType — " +
+        "device instances would not be resolved to the correct concrete type."
+    );
+  }
+
+  console.log(
+    `\n  ✓ OPC40700DeviceType confirmed as HasSubtype of DeviceType  (${opc40700Type.nodeId.toString()})`
+  );
+}
+
 // ── Read ─────────────────────────────────────────────────────────────
 
 async function readAllVariables(
@@ -321,6 +432,12 @@ async function main() {
   await browseAddressSpace(session);
   if (diNsIndex >= 0) {
     await browseDIDeviceSet(session);
+    // ── Phase 2c: FetchSubTypes simulation ──────────────────────────
+    // This replicates the AIO commander's FetchSubTypesAsync path: reads the
+    // DI DeviceType node by numeric id, browses HasSubtype references, and reads
+    // each discovered subtype.  Failure here means FetchSubTypesAsync would
+    // return BadNodeIdUnknown, blocking asset discovery.
+    await fetchSubTypes(session, diNsIndex, nsIndex);
   }
 
   // ── Phase 3: Read ──

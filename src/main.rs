@@ -963,4 +963,62 @@ mod tests {
             );
         }
     }
+
+    // ── HasSubtype hierarchy tests (FetchSubTypes path) ──────────────────────
+    //
+    // These tests verify the exact reference chain that AIO's FetchSubTypesAsync
+    // traverses.  A forward HasSubtype reference must exist from each parent to
+    // each child so that a client browsing from DeviceType can reach
+    // OPC40700DeviceType and then the SurfaceTechnologyDevice instance.
+
+    #[test]
+    fn base_object_type_has_subtype_topology_element_type() {
+        let (address_space, _ns, di_ns) = setup();
+        let base_object_type_id: NodeId = ObjectTypeId::BaseObjectType.into();
+        let topology_element_type_id = NodeId::new(di_ns, 1001u32);
+        assert!(
+            address_space.has_reference(
+                &base_object_type_id,
+                &topology_element_type_id,
+                ReferenceTypeId::HasSubtype,
+            ),
+            "BaseObjectType must have a forward HasSubtype reference to TopologyElementType \
+             (DI ns={}, i=1001)",
+            di_ns
+        );
+    }
+
+    #[test]
+    fn topology_element_type_has_subtype_device_type() {
+        let (address_space, _ns, di_ns) = setup();
+        let topology_element_type_id = NodeId::new(di_ns, 1001u32);
+        let device_type_id = NodeId::new(di_ns, 1002u32);
+        assert!(
+            address_space.has_reference(
+                &topology_element_type_id,
+                &device_type_id,
+                ReferenceTypeId::HasSubtype,
+            ),
+            "TopologyElementType must have a forward HasSubtype reference to DeviceType \
+             (DI ns={}, i=1002)",
+            di_ns
+        );
+    }
+
+    #[test]
+    fn device_type_has_subtype_opc40700_device_type() {
+        let (address_space, ns, di_ns) = setup();
+        let device_type_id = NodeId::new(di_ns, 1002u32);
+        let opc40700_device_type_id = NodeId::new(ns, "OPC40700DeviceType");
+        assert!(
+            address_space.has_reference(
+                &device_type_id,
+                &opc40700_device_type_id,
+                ReferenceTypeId::HasSubtype,
+            ),
+            "DeviceType (DI ns={}, i=1002) must have a forward HasSubtype reference to \
+             OPC40700DeviceType",
+            di_ns
+        );
+    }
 }
