@@ -116,8 +116,10 @@ pub mod constants {
     /// Interval to check for HELLO timeout in millis. This can be fairly coarse because it's not
     /// something that requires huge accuracy.
     pub const HELLO_TIMEOUT_POLL_MS: u64 = 500;
-    /// Maximum time in MS that a session can be inactive before a timeout
-    pub const MAX_SESSION_TIMEOUT: f64 = 60000f64;
+    /// Maximum time in MS that a session can be inactive before a timeout.
+    /// Set to 10 minutes (600 s) to accommodate AIO discovery operations which may
+    /// hold sessions open for extended periods while browsing the DI type hierarchy.
+    pub const MAX_SESSION_TIMEOUT: f64 = 600000f64;
     /// Maximum size in bytes that a request message is allowed to be
     pub const MAX_REQUEST_MESSAGE_SIZE: u32 = 32768;
     /// Default keep alive count
