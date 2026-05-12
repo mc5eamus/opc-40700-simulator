@@ -93,22 +93,22 @@ fn main() {
         let mut as_ref = address_space.write();
 
         // --- DI Namespace: Object Types ---
-        // TopologyElementType (DI ns, i=1001)
+        // TopologyElementType (DI ns, i=1001) - subtype of BaseObjectType
         let topology_element_type_id = NodeId::new(di_ns, 1001u32);
-        ObjectBuilder::new(
+        ObjectTypeBuilder::new(
             &topology_element_type_id,
             "TopologyElementType",
             "TopologyElementType",
         )
-        .has_type_definition(ObjectTypeId::BaseObjectType)
-        .organized_by(NodeId::new(0, 88u32)) // ObjectTypes folder -> BaseObjectType
+        .subtype_of(ObjectTypeId::BaseObjectType)
+        .is_abstract(false)
         .insert(&mut as_ref);
 
         // DeviceType (DI ns, i=1002) - subtype of TopologyElementType
         let device_type_id = NodeId::new(di_ns, 1002u32);
-        ObjectBuilder::new(&device_type_id, "DeviceType", "DeviceType")
-            .has_type_definition(ObjectTypeId::BaseObjectType)
-            .organized_by(NodeId::new(0, 88u32))
+        ObjectTypeBuilder::new(&device_type_id, "DeviceType", "DeviceType")
+            .subtype_of(topology_element_type_id.clone())
+            .is_abstract(false)
             .insert(&mut as_ref);
 
         // --- DI Namespace: DeviceSet folder under Objects ---
