@@ -73,7 +73,7 @@ fn main() {
         .discovery_urls(vec!["/".into()])
         .max_message_size(4 * 1024 * 1024)
         .max_chunk_count(64)
-        .receive_buffer_size(262_144)
+        .receive_buffer_size(256 * 1024)
         .server()
         .unwrap();
 
