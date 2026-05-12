@@ -1,0 +1,11 @@
+[package]
+name = "opc-40700-simulator"
+version = "0.1.0"
+edition = "2021"
+description = "OPC UA simulator for OPC 40700 Surface Technology - General Types companion specification"
+
+[dependencies]
+opcua = { version = "0.12", features = ["server"] }
+log = "0.4"
+env_logger = "0.11"
+rand = "0.8"
