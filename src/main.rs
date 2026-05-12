@@ -71,6 +71,9 @@ fn main() {
         .host_and_port("0.0.0.0", 5000)
         .trust_client_certs()
         .discovery_urls(vec!["/".into()])
+        .max_message_size(4 * 1024 * 1024)
+        .max_chunk_count(64)
+        .receive_buffer_size(256 * 1024)
         .server()
         .unwrap();
 
