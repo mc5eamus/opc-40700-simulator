@@ -356,10 +356,10 @@ fn main() {
         state.conveyor_speed += rng.gen_range(-0.02..0.02);
         state.conveyor_speed = state.conveyor_speed.clamp(CONVEYOR_MIN, CONVEYOR_MAX);
 
-        // Derived control outputs (proportional to error from target)
-        let heating_power = ((state.current_temperature - TARGET_TEMPERATURE).abs() / TEMP_RANGE * 100.0).clamp(0.0, 100.0);
-        let valve_position = ((state.current_pressure - TARGET_PRESSURE).abs() / PRESSURE_RANGE * 100.0).clamp(0.0, 100.0);
-        let pump_speed = ((state.current_flow_rate - TARGET_FLOW_RATE).abs() / FLOW_RANGE * 100.0).clamp(0.0, 100.0);
+        // Derived control outputs: 50% = at target, >50% = above target, <50% = below target
+        let heating_power = (50.0 + (TARGET_TEMPERATURE - state.current_temperature) / TEMP_RANGE * 50.0).clamp(0.0, 100.0);
+        let valve_position = (50.0 + (TARGET_PRESSURE - state.current_pressure) / PRESSURE_RANGE * 50.0).clamp(0.0, 100.0);
+        let pump_speed = (50.0 + (TARGET_FLOW_RATE - state.current_flow_rate) / FLOW_RANGE * 50.0).clamp(0.0, 100.0);
 
         // Job progress
         if state.parts_processed < TOTAL_PARTS {
