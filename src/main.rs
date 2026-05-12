@@ -138,7 +138,7 @@ fn main() {
             "Manufacturer",
         )
         .data_type(DataTypeId::String)
-        .value(UAString::from("OPC40700 Simulator Corp"))
+        .value(UAString::from(""))
         .property_of(opc40700_device_type_id.clone())
         .has_type_definition(VariableTypeId::PropertyType)
         .insert(&mut as_ref);
@@ -149,7 +149,7 @@ fn main() {
             "Model",
         )
         .data_type(DataTypeId::String)
-        .value(UAString::from("ST-SIM-1000"))
+        .value(UAString::from(""))
         .property_of(opc40700_device_type_id.clone())
         .has_type_definition(VariableTypeId::PropertyType)
         .insert(&mut as_ref);
@@ -160,7 +160,7 @@ fn main() {
             "SerialNumber",
         )
         .data_type(DataTypeId::String)
-        .value(UAString::from("SN-2024-40700-001"))
+        .value(UAString::from(""))
         .property_of(opc40700_device_type_id.clone())
         .has_type_definition(VariableTypeId::PropertyType)
         .insert(&mut as_ref);
