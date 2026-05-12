@@ -4,7 +4,7 @@ An OPC UA simulator implementing the [OPC 40700 Surface Technology – General T
 
 ## Features
 
-- OPC UA server on `opc.tcp://0.0.0.0:4840`
+- OPC UA server on `opc.tcp://0.0.0.0:5000`
 - Simulated surface technology system with temperature, pressure, flow, and coating controllers
 - Job management with progress tracking
 - Realistic telemetry via random-walk simulation updated every second
@@ -37,7 +37,7 @@ cargo build --release
 
 ```bash
 docker build -t opc-40700-simulator .
-docker run -p 4840:4840 opc-40700-simulator
+docker run -p 5000:5000 opc-40700-simulator
 ```
 
 ### Connect
@@ -45,7 +45,7 @@ docker run -p 4840:4840 opc-40700-simulator
 Use any OPC UA client (e.g., UaExpert, Prosys OPC UA Browser) and connect to:
 
 ```
-opc.tcp://localhost:4840
+opc.tcp://localhost:5000
 ```
 
 ## Environment

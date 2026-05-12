@@ -7,5 +7,5 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /app/target/release/opc-40700-simulator .
-EXPOSE 4840
+EXPOSE 5000
 CMD ["./opc-40700-simulator"]

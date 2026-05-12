@@ -68,7 +68,7 @@ fn main() {
         .product_uri("urn:opc40700:surface-technology:simulator")
         .create_sample_keypair(true)
         .pki_dir("./pki")
-        .host_and_port("0.0.0.0", 4840)
+        .host_and_port("0.0.0.0", 5000)
         .trust_client_certs()
         .discovery_urls(vec!["/".into()])
         .server()
@@ -383,6 +383,6 @@ fn main() {
         let _ = as_ref.set_variable_value(NodeId::new(ns, "JobProgress"), job_progress, &now, &now);
     });
 
-    info!("OPC UA server running on opc.tcp://0.0.0.0:4840");
+    info!("OPC UA server running on opc.tcp://0.0.0.0:5000");
     server.run();
 }
