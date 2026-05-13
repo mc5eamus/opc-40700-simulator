@@ -107,7 +107,57 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .is_abstract(false)
     .insert(as_ref);
 
-    // DeviceType (DI ns, i=1002) - subtype of TopologyElementType
+    // DI interface types (abstract, subtypes of OPC UA BaseInterfaceType i=17602).
+    // Required so that HasInterface references on the device type and instance
+    // point to resolvable nodes — AIO/Akri checks these when validating DI compliance.
+    let ivendor_nameplate_type_id = NodeId::new(di_ns, 15035u32);
+    ObjectTypeBuilder::new(
+        &ivendor_nameplate_type_id,
+        QualifiedName::new(di_ns, "IVendorNameplateType"),
+        "IVendorNameplateType",
+    )
+    .subtype_of(ObjectTypeId::BaseInterfaceType)
+    .is_abstract(true)
+    .insert(as_ref);
+
+    let itag_nameplate_type_id = NodeId::new(di_ns, 15048u32);
+    ObjectTypeBuilder::new(
+        &itag_nameplate_type_id,
+        QualifiedName::new(di_ns, "ITagNameplateType"),
+        "ITagNameplateType",
+    )
+    .subtype_of(ObjectTypeId::BaseInterfaceType)
+    .is_abstract(true)
+    .insert(as_ref);
+
+    let idevice_health_type_id = NodeId::new(di_ns, 15051u32);
+    ObjectTypeBuilder::new(
+        &idevice_health_type_id,
+        QualifiedName::new(di_ns, "IDeviceHealthType"),
+        "IDeviceHealthType",
+    )
+    .subtype_of(ObjectTypeId::BaseInterfaceType)
+    .is_abstract(true)
+    .insert(as_ref);
+
+    // DeviceHealthEnumeration DataType (DI ns, i=6244). Needed so the DeviceHealth
+    // variable's DataType attribute resolves to a browsable node.
+    let dh_enum_type_id = NodeId::new(di_ns, 6244u32);
+    let dh_enum_node = DataType::new(
+        &dh_enum_type_id,
+        QualifiedName::new(di_ns, "DeviceHealthEnumeration"),
+        "DeviceHealthEnumeration",
+        false,
+    );
+    let has_subtype_id = NodeId::from(&ReferenceTypeId::HasSubtype);
+    let enumeration_dt_id = NodeId::from(&DataTypeId::Enumeration);
+    as_ref.insert(
+        dh_enum_node,
+        Some(&[(&enumeration_dt_id, &has_subtype_id, ReferenceDirection::Inverse)]),
+    );
+
+    // DeviceType (DI ns, i=1002) - subtype of TopologyElementType.
+    // Abstract per DI spec — only concrete subtypes are instantiated.
     let device_type_id = NodeId::new(di_ns, 1002u32);
     ObjectTypeBuilder::new(
         &device_type_id,
@@ -115,7 +165,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         "DeviceType",
     )
     .subtype_of(topology_element_type_id.clone())
-    .is_abstract(false)
+    .is_abstract(true)
     .insert(as_ref);
 
     // --- DI Namespace: DeviceSet folder under Objects (DI: i=5001) ---
@@ -140,13 +190,14 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .is_abstract(false)
     .insert(as_ref);
 
+    // Manufacturer and Model are LocalizedText per the DI spec.
     VariableBuilder::new(
         &NodeId::new(ns, "OPC40700DeviceType_Manufacturer"),
         QualifiedName::new(di_ns, "Manufacturer"),
         "Manufacturer",
     )
-    .data_type(DataTypeId::String)
-    .value(UAString::from(""))
+    .data_type(DataTypeId::LocalizedText)
+    .value(LocalizedText::new("en", ""))
     .property_of(opc40700_device_type_id.clone())
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
@@ -156,8 +207,8 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         QualifiedName::new(di_ns, "Model"),
         "Model",
     )
-    .data_type(DataTypeId::String)
-    .value(UAString::from(""))
+    .data_type(DataTypeId::LocalizedText)
+    .value(LocalizedText::new("en", ""))
     .property_of(opc40700_device_type_id.clone())
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
@@ -173,6 +224,24 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
 
+    // HasInterface references on the device type — DI 10000-100 ch.5 requires these
+    // so that DI-aware clients know the type formally implements the DI interfaces.
+    as_ref.insert_reference(
+        &opc40700_device_type_id,
+        &ivendor_nameplate_type_id,
+        ReferenceTypeId::HasInterface,
+    );
+    as_ref.insert_reference(
+        &opc40700_device_type_id,
+        &itag_nameplate_type_id,
+        ReferenceTypeId::HasInterface,
+    );
+    as_ref.insert_reference(
+        &opc40700_device_type_id,
+        &idevice_health_type_id,
+        ReferenceTypeId::HasInterface,
+    );
+
     // --- DI Device instance: SurfaceTechnologyDevice ---
     let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
     ObjectBuilder::new(
@@ -184,14 +253,32 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .organized_by(device_set_id.clone())
     .insert(as_ref);
 
+    // Mirror HasInterface on the instance too — some AIO/Akri versions inspect the
+    // instance rather than walking up to the type.
+    as_ref.insert_reference(
+        &device_id,
+        &ivendor_nameplate_type_id,
+        ReferenceTypeId::HasInterface,
+    );
+    as_ref.insert_reference(
+        &device_id,
+        &itag_nameplate_type_id,
+        ReferenceTypeId::HasInterface,
+    );
+    as_ref.insert_reference(
+        &device_id,
+        &idevice_health_type_id,
+        ReferenceTypeId::HasInterface,
+    );
+
     // DI-standard properties on the device instance
     VariableBuilder::new(
         &NodeId::new(ns, "DI_Manufacturer"),
         QualifiedName::new(di_ns, "Manufacturer"),
         "Manufacturer",
     )
-    .data_type(DataTypeId::String)
-    .value(UAString::from("OPC40700 Simulator Corp"))
+    .data_type(DataTypeId::LocalizedText)
+    .value(LocalizedText::new("en", "OPC40700 Simulator Corp"))
     .property_of(device_id.clone())
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
@@ -201,8 +288,8 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         QualifiedName::new(di_ns, "Model"),
         "Model",
     )
-    .data_type(DataTypeId::String)
-    .value(UAString::from("ST-SIM-1000"))
+    .data_type(DataTypeId::LocalizedText)
+    .value(LocalizedText::new("en", "ST-SIM-1000"))
     .property_of(device_id.clone())
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
@@ -312,8 +399,8 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         QualifiedName::new(di_ns, "ComponentName"),
         "ComponentName",
     )
-    .data_type(DataTypeId::String)
-    .value(UAString::from("Surface Technology System ST-SIM-1000"))
+    .data_type(DataTypeId::LocalizedText)
+    .value(LocalizedText::new("en", "Surface Technology System ST-SIM-1000"))
     .property_of(device_id.clone())
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
@@ -331,10 +418,24 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .component_of(device_id.clone())
     .insert(as_ref);
 
-    // Mirror key nameplate properties under Identification
-    for (suffix, browse, value) in [
+    // Mirror key nameplate properties under Identification.
+    // Manufacturer and Model are LocalizedText; the rest are String.
+    for (suffix, browse, lt_value) in [
         ("Ident_Manufacturer", "Manufacturer", "OPC40700 Simulator Corp"),
         ("Ident_Model", "Model", "ST-SIM-1000"),
+    ] {
+        VariableBuilder::new(
+            &NodeId::new(ns, suffix),
+            QualifiedName::new(di_ns, browse),
+            browse,
+        )
+        .data_type(DataTypeId::LocalizedText)
+        .value(LocalizedText::new("en", lt_value))
+        .property_of(identification_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(as_ref);
+    }
+    for (suffix, browse, value) in [
         ("Ident_SerialNumber", "SerialNumber", "SN-2024-40700-001"),
         ("Ident_HardwareRevision", "HardwareRevision", "1.0"),
         ("Ident_SoftwareRevision", "SoftwareRevision", "1.0.0"),
@@ -352,13 +453,14 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     }
 
     // --- DI ParameterSet (holds all process variables for discovery) ---
+    // Typed as BaseObjectType per DI NodeSet (ns=1;i=5002 uses HasTypeDefinition → i=58).
     let parameter_set_id = NodeId::new(ns, "DI_ParameterSet");
     ObjectBuilder::new(
         &parameter_set_id,
         QualifiedName::new(di_ns, "ParameterSet"),
         "ParameterSet",
     )
-    .has_type_definition(functional_group_type_id.clone())
+    .has_type_definition(ObjectTypeId::BaseObjectType)
     .component_of(device_id.clone())
     .insert(as_ref);
 
@@ -374,15 +476,26 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .insert(as_ref);
 
     // --- DeviceHealth variable (IDeviceHealthType compliance) ---
+    // DataType must be DeviceHealthEnumeration (DI ns, i=6244) per DI spec.
     VariableBuilder::new(
         &NodeId::new(ns, "DI_DeviceHealth"),
         QualifiedName::new(di_ns, "DeviceHealth"),
         "DeviceHealth",
     )
-    .data_type(DataTypeId::Int32)
+    .data_type(NodeId::new(di_ns, 6244u32))
     .value(0i32) // 0 = NORMAL
     .component_of(device_id.clone())
     .has_type_definition(VariableTypeId::BaseDataVariableType)
+    .insert(as_ref);
+
+    // --- DeviceHealthAlarms folder (required by IDeviceHealthType, DI ns i=15053) ---
+    ObjectBuilder::new(
+        &NodeId::new(ns, "DI_DeviceHealthAlarms"),
+        QualifiedName::new(di_ns, "DeviceHealthAlarms"),
+        "DeviceHealthAlarms",
+    )
+    .has_type_definition(ObjectTypeId::BaseObjectType)
+    .component_of(device_id.clone())
     .insert(as_ref);
 
     // --- SurfaceTechnologySystem folder (component of device, also under Objects) ---
@@ -1111,11 +1224,11 @@ mod tests {
             address_space.has_reference(&device_id, &param_set_id, ReferenceTypeId::HasComponent),
             "SurfaceTechnologyDevice must have ParameterSet as component"
         );
-        // ParameterSet should be typed as FunctionalGroupType
-        let fg_type_id = NodeId::new(di_ns, 1005u32);
+        // ParameterSet should be typed as BaseObjectType per DI spec (i=58)
+        let base_object_type_id = NodeId::from(&ObjectTypeId::BaseObjectType);
         assert!(
-            address_space.has_reference(&param_set_id, &fg_type_id, ReferenceTypeId::HasTypeDefinition),
-            "ParameterSet must have FunctionalGroupType as type definition"
+            address_space.has_reference(&param_set_id, &base_object_type_id, ReferenceTypeId::HasTypeDefinition),
+            "ParameterSet must have BaseObjectType as type definition"
         );
     }
 
@@ -1549,5 +1662,104 @@ mod tests {
             "Objects subtree too deep: {} (expected < 15)",
             max_depth
         );
+    }
+
+    // ── DI compliance tests (HasInterface, DeviceHealthAlarms, LocalizedText) ─
+
+    #[test]
+    fn device_type_is_abstract() {
+        let (address_space, _ns, di_ns) = setup();
+        let device_type_id = NodeId::new(di_ns, 1002u32);
+        let node = address_space.find_node(&device_type_id).unwrap();
+        if let opcua::server::prelude::NodeType::ObjectType(ot) = node {
+            assert!(ot.is_abstract(), "DeviceType must be abstract per DI spec");
+        } else {
+            panic!("DeviceType node is not an ObjectType");
+        }
+    }
+
+    #[test]
+    fn di_interface_types_exist() {
+        let (address_space, _ns, di_ns) = setup();
+        for (i, name) in [(15035u32, "IVendorNameplateType"), (15048, "ITagNameplateType"), (15051, "IDeviceHealthType")] {
+            let id = NodeId::new(di_ns, i);
+            assert!(address_space.find_node(&id).is_some(), "{} (DI ns, i={}) must exist", name, i);
+        }
+    }
+
+    #[test]
+    fn opc40700_device_type_has_interface_references() {
+        let (address_space, ns, di_ns) = setup();
+        let type_id = NodeId::new(ns, "OPC40700DeviceType");
+        for (i, name) in [(15035u32, "IVendorNameplateType"), (15048, "ITagNameplateType"), (15051, "IDeviceHealthType")] {
+            let iface_id = NodeId::new(di_ns, i);
+            assert!(
+                address_space.has_reference(&type_id, &iface_id, ReferenceTypeId::HasInterface),
+                "OPC40700DeviceType must have HasInterface → {} (i={})",
+                name, i
+            );
+        }
+    }
+
+    #[test]
+    fn device_instance_has_interface_references() {
+        let (address_space, ns, di_ns) = setup();
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        for (i, name) in [(15035u32, "IVendorNameplateType"), (15048, "ITagNameplateType"), (15051, "IDeviceHealthType")] {
+            let iface_id = NodeId::new(di_ns, i);
+            assert!(
+                address_space.has_reference(&device_id, &iface_id, ReferenceTypeId::HasInterface),
+                "SurfaceTechnologyDevice must have HasInterface → {} (i={})",
+                name, i
+            );
+        }
+    }
+
+    #[test]
+    fn device_health_alarms_folder_exists() {
+        let (address_space, ns, _di_ns) = setup();
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        let alarms_id = NodeId::new(ns, "DI_DeviceHealthAlarms");
+        assert!(address_space.find_node(&alarms_id).is_some(), "DeviceHealthAlarms folder must exist");
+        assert!(
+            address_space.has_reference(&device_id, &alarms_id, ReferenceTypeId::HasComponent),
+            "SurfaceTechnologyDevice must have DeviceHealthAlarms as a component"
+        );
+    }
+
+    #[test]
+    fn device_health_has_enumeration_data_type() {
+        let (address_space, ns, di_ns) = setup();
+        let health_id = NodeId::new(ns, "DI_DeviceHealth");
+        let dh_enum_id = NodeId::new(di_ns, 6244u32);
+        let node = address_space.find_node(&health_id).expect("DI_DeviceHealth must exist");
+        if let opcua::server::prelude::NodeType::Variable(v) = node {
+            assert_eq!(
+                v.data_type(), dh_enum_id,
+                "DeviceHealth DataType must be DeviceHealthEnumeration (DI ns, i=6244)"
+            );
+        } else {
+            panic!("DI_DeviceHealth is not a variable node");
+        }
+    }
+
+    #[test]
+    fn manufacturer_and_model_are_localized_text() {
+        let (address_space, ns, _di_ns) = setup();
+        for node_str_id in ["DI_Manufacturer", "DI_Model", "DI_ComponentName"] {
+            let node_id = NodeId::new(ns, node_str_id);
+            let node = address_space.find_node(&node_id).expect(&format!("{} must exist", node_str_id));
+            if let opcua::server::prelude::NodeType::Variable(v) = node {
+                let data_type = v.data_type();
+                let expected = NodeId::from(&DataTypeId::LocalizedText);
+                assert_eq!(
+                    data_type, expected,
+                    "{} DataType must be LocalizedText, got {:?}",
+                    node_str_id, data_type
+                );
+            } else {
+                panic!("{} is not a variable node", node_str_id);
+            }
+        }
     }
 }
