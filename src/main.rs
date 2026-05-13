@@ -1159,6 +1159,7 @@ mod tests {
         let mut all_nodes: Vec<NodeId> = vec![root_id.clone()];
         let mut bfs_visited: HashSet<NodeId> = HashSet::new();
         bfs_visited.insert(root_id.clone());
+        // BFS using index iteration (all_nodes grows during loop)
         let mut i = 0;
         while i < all_nodes.len() {
             let node_id = all_nodes[i].clone();
@@ -1247,6 +1248,7 @@ mod tests {
         let mut queue: Vec<(NodeId, usize)> = vec![(objects_id.clone(), 0)];
         visited.insert(objects_id);
         let mut max_depth: usize = 0;
+        // BFS using index iteration (queue grows during loop)
         let mut i = 0;
 
         while i < queue.len() {

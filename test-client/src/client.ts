@@ -419,7 +419,7 @@ async function subscribeTelemetry(
 async function verifyNoCircularReferences(session: ClientSession): Promise<void> {
   header("PHASE 5: Verify No Circular References (BFS Traversal)");
 
-  const objectsFolderId = "i=85"; // Objects folder
+  const objectsFolderId = "ns=0;i=85"; // Objects folder
   const visited = new Set<string>();
   const queue: Array<{ nodeId: string; depth: number }> = [
     { nodeId: objectsFolderId, depth: 0 },
