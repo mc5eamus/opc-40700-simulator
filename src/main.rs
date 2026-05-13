@@ -1097,4 +1097,182 @@ mod tests {
             di_ns
         );
     }
+
+    // ── Circular reference detection ─────────────────────────────────────────
+    //
+    // Simulates what AIO Commander's BrowseFullAddressSpace does: a BFS traversal
+    // from Root following forward HierarchicalReferences (include subtypes).
+    // The address space must be acyclic with a max depth well below the
+    // commander's 128-depth limit.
+
+    #[test]
+    fn no_circular_references_in_hierarchical_browse() {
+        use std::collections::{HashSet, VecDeque};
+
+        let (address_space, _ns, _di_ns) = setup();
+
+        // BFS from Root (i=84) following forward HierarchicalReferences
+        let root_id = NodeId::new(0, 84u32); // Root
+        let mut visited: HashSet<NodeId> = HashSet::new();
+        let mut queue: VecDeque<(NodeId, usize)> = VecDeque::new();
+        let mut max_depth: usize = 0;
+
+        queue.push_back((root_id.clone(), 0));
+        visited.insert(root_id);
+
+        while let Some((node_id, depth)) = queue.pop_front() {
+            max_depth = max_depth.max(depth);
+
+            // Browse forward references filtered to HierarchicalReferences with subtypes
+            let (references, _inverse_idx) = address_space.find_references_by_direction(
+                &node_id,
+                BrowseDirection::Forward,
+                Some((ReferenceTypeId::HierarchicalReferences, true)),
+            );
+
+            for reference in &references {
+                if !visited.contains(&reference.target_node) {
+                    visited.insert(reference.target_node.clone());
+                    queue.push_back((reference.target_node.clone(), depth + 1));
+                }
+            }
+        }
+
+        assert!(
+            max_depth < 20,
+            "Address space tree too deep: {} (likely circular references). Expected < 20.",
+            max_depth
+        );
+    }
+
+    /// Detect actual cycles (back-edges) in the forward hierarchical reference graph
+    /// using iterative DFS with three-color marking. Any back-edge would cause
+    /// infinite traversal in clients that don't deduplicate globally.
+    #[test]
+    fn no_back_edges_in_hierarchical_references() {
+        use std::collections::HashSet;
+
+        let (address_space, _ns, _di_ns) = setup();
+
+        // First collect all reachable nodes via BFS
+        let root_id = NodeId::new(0, 84u32);
+        let mut all_nodes: Vec<NodeId> = vec![root_id.clone()];
+        let mut bfs_visited: HashSet<NodeId> = HashSet::new();
+        bfs_visited.insert(root_id.clone());
+        // BFS using index iteration (all_nodes grows during loop)
+        let mut i = 0;
+        while i < all_nodes.len() {
+            let node_id = all_nodes[i].clone();
+            let (references, _) = address_space.find_references_by_direction(
+                &node_id,
+                BrowseDirection::Forward,
+                Some((ReferenceTypeId::HierarchicalReferences, true)),
+            );
+            for reference in &references {
+                if !bfs_visited.contains(&reference.target_node) {
+                    bfs_visited.insert(reference.target_node.clone());
+                    all_nodes.push(reference.target_node.clone());
+                }
+            }
+            i += 1;
+        }
+
+        // DFS with explicit stack to detect back-edges (cycles)
+        let mut white: HashSet<NodeId> = all_nodes.iter().cloned().collect();
+        let mut gray: HashSet<NodeId> = HashSet::new();
+        let mut black: HashSet<NodeId> = HashSet::new();
+        let mut cycle_edges: Vec<(NodeId, NodeId)> = Vec::new();
+
+        enum DfsAction {
+            Enter(NodeId),
+            Exit(NodeId),
+        }
+
+        let mut stack: Vec<DfsAction> = Vec::new();
+        for node in &all_nodes {
+            if white.contains(node) {
+                stack.push(DfsAction::Enter(node.clone()));
+            }
+            while let Some(action) = stack.pop() {
+                match action {
+                    DfsAction::Enter(n) => {
+                        if !white.contains(&n) {
+                            continue;
+                        }
+                        white.remove(&n);
+                        gray.insert(n.clone());
+                        stack.push(DfsAction::Exit(n.clone()));
+
+                        let (references, _) = address_space.find_references_by_direction(
+                            &n,
+                            BrowseDirection::Forward,
+                            Some((ReferenceTypeId::HierarchicalReferences, true)),
+                        );
+
+                        for reference in &references {
+                            if gray.contains(&reference.target_node) {
+                                cycle_edges.push((n.clone(), reference.target_node.clone()));
+                            } else if white.contains(&reference.target_node) {
+                                stack.push(DfsAction::Enter(reference.target_node.clone()));
+                            }
+                        }
+                    }
+                    DfsAction::Exit(n) => {
+                        gray.remove(&n);
+                        black.insert(n.clone());
+                    }
+                }
+            }
+        }
+
+        assert!(
+            cycle_edges.is_empty(),
+            "Found {} back-edge(s) (cycles) in hierarchical references: {:?}",
+            cycle_edges.len(),
+            &cycle_edges[..cycle_edges.len().min(10)]
+        );
+    }
+
+    /// Verify that the application-specific portion of the address space (under
+    /// Objects folder) has a reasonable number of hierarchical children, ensuring
+    /// AIO Commander discovery won't time out or hit excessive depth.
+    #[test]
+    fn objects_folder_subtree_is_bounded() {
+        use std::collections::HashSet;
+
+        let (address_space, _ns, _di_ns) = setup();
+
+        // BFS from Objects folder (i=85) - this is what AIO Commander browses
+        let objects_id = NodeId::objects_folder_id();
+        let mut visited: HashSet<NodeId> = HashSet::new();
+        let mut queue: Vec<(NodeId, usize)> = vec![(objects_id.clone(), 0)];
+        visited.insert(objects_id);
+        let mut max_depth: usize = 0;
+        // BFS using index iteration (queue grows during loop)
+        let mut i = 0;
+
+        while i < queue.len() {
+            let (node_id, depth) = queue[i].clone();
+            max_depth = max_depth.max(depth);
+            let (references, _) = address_space.find_references_by_direction(
+                &node_id,
+                BrowseDirection::Forward,
+                Some((ReferenceTypeId::HierarchicalReferences, true)),
+            );
+            for reference in &references {
+                if !visited.contains(&reference.target_node) {
+                    visited.insert(reference.target_node.clone());
+                    queue.push((reference.target_node.clone(), depth + 1));
+                }
+            }
+            i += 1;
+        }
+
+        // The Objects subtree should be compact: the Server object plus our device
+        assert!(
+            max_depth < 15,
+            "Objects subtree too deep: {} (expected < 15)",
+            max_depth
+        );
+    }
 }
