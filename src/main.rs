@@ -95,6 +95,18 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .is_abstract(false)
     .insert(as_ref);
 
+    // FunctionalGroupType (DI ns, i=1005) - subtype of BaseObjectType
+    // Used for Identification, ParameterSet groupings per DI spec.
+    let functional_group_type_id = NodeId::new(di_ns, 1005u32);
+    ObjectTypeBuilder::new(
+        &functional_group_type_id,
+        QualifiedName::new(di_ns, "FunctionalGroupType"),
+        "FunctionalGroupType",
+    )
+    .subtype_of(ObjectTypeId::BaseObjectType)
+    .is_abstract(false)
+    .insert(as_ref);
+
     // DeviceType (DI ns, i=1002) - subtype of TopologyElementType
     let device_type_id = NodeId::new(di_ns, 1002u32);
     ObjectTypeBuilder::new(
@@ -248,6 +260,129 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .value(UAString::from("Surface Treatment Equipment"))
     .property_of(device_id.clone())
     .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
+
+    // Additional DI nameplate properties (IVendorNameplateType compliance)
+    VariableBuilder::new(
+        &NodeId::new(ns, "DI_ProductCode"),
+        QualifiedName::new(di_ns, "ProductCode"),
+        "ProductCode",
+    )
+    .data_type(DataTypeId::String)
+    .value(UAString::from("ST-SIM-1000-2024"))
+    .property_of(device_id.clone())
+    .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
+
+    VariableBuilder::new(
+        &NodeId::new(ns, "DI_DeviceRevision"),
+        QualifiedName::new(di_ns, "DeviceRevision"),
+        "DeviceRevision",
+    )
+    .data_type(DataTypeId::String)
+    .value(UAString::from("Rev-1"))
+    .property_of(device_id.clone())
+    .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
+
+    VariableBuilder::new(
+        &NodeId::new(ns, "DI_RevisionCounter"),
+        QualifiedName::new(di_ns, "RevisionCounter"),
+        "RevisionCounter",
+    )
+    .data_type(DataTypeId::Int32)
+    .value(1i32)
+    .property_of(device_id.clone())
+    .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
+
+    VariableBuilder::new(
+        &NodeId::new(ns, "DI_AssetId"),
+        QualifiedName::new(di_ns, "AssetId"),
+        "AssetId",
+    )
+    .data_type(DataTypeId::String)
+    .value(UAString::from("OPC40700-ST-SIM-1000"))
+    .property_of(device_id.clone())
+    .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
+
+    VariableBuilder::new(
+        &NodeId::new(ns, "DI_ComponentName"),
+        QualifiedName::new(di_ns, "ComponentName"),
+        "ComponentName",
+    )
+    .data_type(DataTypeId::String)
+    .value(UAString::from("Surface Technology System ST-SIM-1000"))
+    .property_of(device_id.clone())
+    .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
+
+    // --- DI Identification group (FunctionalGroupType) ---
+    // DI convention: an "Identification" folder under the device mirrors key
+    // nameplate properties for Akri/AIO discovery.
+    let identification_id = NodeId::new(ns, "DI_Identification");
+    ObjectBuilder::new(
+        &identification_id,
+        QualifiedName::new(di_ns, "Identification"),
+        "Identification",
+    )
+    .has_type_definition(functional_group_type_id.clone())
+    .component_of(device_id.clone())
+    .insert(as_ref);
+
+    // Mirror key nameplate properties under Identification
+    for (suffix, browse, value) in [
+        ("Ident_Manufacturer", "Manufacturer", "OPC40700 Simulator Corp"),
+        ("Ident_Model", "Model", "ST-SIM-1000"),
+        ("Ident_SerialNumber", "SerialNumber", "SN-2024-40700-001"),
+        ("Ident_HardwareRevision", "HardwareRevision", "1.0"),
+        ("Ident_SoftwareRevision", "SoftwareRevision", "1.0.0"),
+    ] {
+        VariableBuilder::new(
+            &NodeId::new(ns, suffix),
+            QualifiedName::new(di_ns, browse),
+            browse,
+        )
+        .data_type(DataTypeId::String)
+        .value(UAString::from(value))
+        .property_of(identification_id.clone())
+        .has_type_definition(VariableTypeId::PropertyType)
+        .insert(as_ref);
+    }
+
+    // --- DI ParameterSet (holds all process variables for discovery) ---
+    let parameter_set_id = NodeId::new(ns, "DI_ParameterSet");
+    ObjectBuilder::new(
+        &parameter_set_id,
+        QualifiedName::new(di_ns, "ParameterSet"),
+        "ParameterSet",
+    )
+    .has_type_definition(functional_group_type_id.clone())
+    .component_of(device_id.clone())
+    .insert(as_ref);
+
+    // --- DI MethodSet (empty placeholder, required by DI spec) ---
+    let method_set_id = NodeId::new(ns, "DI_MethodSet");
+    ObjectBuilder::new(
+        &method_set_id,
+        QualifiedName::new(di_ns, "MethodSet"),
+        "MethodSet",
+    )
+    .has_type_definition(functional_group_type_id.clone())
+    .component_of(device_id.clone())
+    .insert(as_ref);
+
+    // --- DeviceHealth variable (IDeviceHealthType compliance) ---
+    VariableBuilder::new(
+        &NodeId::new(ns, "DI_DeviceHealth"),
+        QualifiedName::new(di_ns, "DeviceHealth"),
+        "DeviceHealth",
+    )
+    .data_type(DataTypeId::Int32)
+    .value(0i32) // 0 = NORMAL
+    .component_of(device_id.clone())
+    .has_type_definition(VariableTypeId::BaseDataVariableType)
     .insert(as_ref);
 
     // --- SurfaceTechnologySystem folder (component of device, also under Objects) ---
@@ -493,7 +628,7 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     );
 
     // Ensure all process variables are explicitly typed for discovery tooling.
-    for variable_name in [
+    let process_variable_names = [
         "Manufacturer",
         "Model",
         "SerialNumber",
@@ -521,10 +656,22 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         "PartsProcessed",
         "TotalParts",
         "JobProgress",
-    ] {
+    ];
+    for variable_name in &process_variable_names {
         as_ref.set_node_type(
-            &NodeId::new(ns, variable_name),
+            &NodeId::new(ns, *variable_name),
             &VariableTypeId::BaseDataVariableType,
+        );
+    }
+
+    // Add Organizes references from ParameterSet to all process variables
+    // so that DI-aware discovery clients (Akri/AIO) can find them by browsing
+    // the ParameterSet folder.
+    for variable_name in &process_variable_names {
+        as_ref.insert_reference(
+            &parameter_set_id,
+            &NodeId::new(ns, *variable_name),
+            ReferenceTypeId::Organizes,
         );
     }
 
@@ -542,7 +689,7 @@ fn main() {
         .pki_dir("./pki")
         .host_and_port("0.0.0.0", 5000)
         .trust_client_certs()
-        .discovery_urls(vec!["/".into()])
+        .discovery_urls(vec!["/aio-demo-opc40700".into()])
         .max_message_size(4 * 1024 * 1024)
         .max_chunk_count(64)
         .send_buffer_size(SEND_BUFFER_SIZE)
@@ -940,6 +1087,134 @@ mod tests {
             !address_space.has_reference(&objects_id, &system_id, ReferenceTypeId::Organizes),
             "Objects folder must not directly organize SurfaceTechnologySystem"
         );
+    }
+
+    // ── DI Discovery structure tests ─────────────────────────────────────────
+
+    #[test]
+    fn functional_group_type_exists_at_di_i1005() {
+        let (address_space, _ns, di_ns) = setup();
+        let node_id = NodeId::new(di_ns, 1005u32);
+        assert!(
+            address_space.find_node(&node_id).is_some(),
+            "FunctionalGroupType must exist at DI ns index {}, i=1005",
+            di_ns
+        );
+    }
+
+    #[test]
+    fn parameter_set_is_component_of_device() {
+        let (address_space, ns, di_ns) = setup();
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        let param_set_id = NodeId::new(ns, "DI_ParameterSet");
+        assert!(
+            address_space.has_reference(&device_id, &param_set_id, ReferenceTypeId::HasComponent),
+            "SurfaceTechnologyDevice must have ParameterSet as component"
+        );
+        // ParameterSet should be typed as FunctionalGroupType
+        let fg_type_id = NodeId::new(di_ns, 1005u32);
+        assert!(
+            address_space.has_reference(&param_set_id, &fg_type_id, ReferenceTypeId::HasTypeDefinition),
+            "ParameterSet must have FunctionalGroupType as type definition"
+        );
+    }
+
+    #[test]
+    fn parameter_set_has_browse_name_in_di_namespace() {
+        let (address_space, ns, di_ns) = setup();
+        let param_set_id = NodeId::new(ns, "DI_ParameterSet");
+        let node = address_space.find_node(&param_set_id).unwrap();
+        let browse_name = node.as_node().browse_name();
+        assert_eq!(browse_name.namespace_index, di_ns);
+        assert_eq!(browse_name.name.as_ref(), "ParameterSet");
+    }
+
+    #[test]
+    fn parameter_set_organizes_process_variables() {
+        let (address_space, ns, _di_ns) = setup();
+        let param_set_id = NodeId::new(ns, "DI_ParameterSet");
+        for var_name in &["CurrentTemperature", "CurrentPressure", "CurrentFlowRate"] {
+            let var_id = NodeId::new(ns, *var_name);
+            assert!(
+                address_space.has_reference(&param_set_id, &var_id, ReferenceTypeId::Organizes),
+                "ParameterSet must organize variable '{}'",
+                var_name
+            );
+        }
+    }
+
+    #[test]
+    fn identification_is_component_of_device() {
+        let (address_space, ns, _di_ns) = setup();
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        let ident_id = NodeId::new(ns, "DI_Identification");
+        assert!(
+            address_space.has_reference(&device_id, &ident_id, ReferenceTypeId::HasComponent),
+            "SurfaceTechnologyDevice must have Identification as component"
+        );
+    }
+
+    #[test]
+    fn identification_has_type_definition_functional_group() {
+        let (address_space, ns, di_ns) = setup();
+        let ident_id = NodeId::new(ns, "DI_Identification");
+        let fg_type_id = NodeId::new(di_ns, 1005u32);
+        assert!(
+            address_space.has_reference(&ident_id, &fg_type_id, ReferenceTypeId::HasTypeDefinition),
+            "Identification must have FunctionalGroupType as type definition"
+        );
+    }
+
+    #[test]
+    fn method_set_is_component_of_device() {
+        let (address_space, ns, di_ns) = setup();
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        let method_set_id = NodeId::new(ns, "DI_MethodSet");
+        assert!(
+            address_space.has_reference(&device_id, &method_set_id, ReferenceTypeId::HasComponent),
+            "SurfaceTechnologyDevice must have MethodSet as component"
+        );
+        // MethodSet should be typed as FunctionalGroupType
+        let fg_type_id = NodeId::new(di_ns, 1005u32);
+        assert!(
+            address_space.has_reference(&method_set_id, &fg_type_id, ReferenceTypeId::HasTypeDefinition),
+            "MethodSet must have FunctionalGroupType as type definition"
+        );
+    }
+
+    #[test]
+    fn device_health_variable_exists() {
+        let (address_space, ns, _di_ns) = setup();
+        let health_id = NodeId::new(ns, "DI_DeviceHealth");
+        assert!(
+            address_space.find_node(&health_id).is_some(),
+            "DeviceHealth variable must exist on device"
+        );
+    }
+
+    #[test]
+    fn device_has_additional_nameplate_properties() {
+        let (address_space, ns, _di_ns) = setup();
+        let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
+        for prop_name in &[
+            "DI_ProductCode",
+            "DI_DeviceRevision",
+            "DI_RevisionCounter",
+            "DI_AssetId",
+            "DI_ComponentName",
+        ] {
+            let prop_id = NodeId::new(ns, *prop_name);
+            assert!(
+                address_space.find_node(&prop_id).is_some(),
+                "Property node '{}' must exist",
+                prop_name
+            );
+            assert!(
+                address_space.has_reference(&device_id, &prop_id, ReferenceTypeId::HasProperty),
+                "SurfaceTechnologyDevice must have property '{}'",
+                prop_name
+            );
+        }
     }
 
     // ── SimState tests ───────────────────────────────────────────────────────
