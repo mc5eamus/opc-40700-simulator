@@ -777,14 +777,16 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         );
     }
 
-    // Add Organizes references from ParameterSet to all process variables
-    // so that DI-aware discovery clients (Akri/AIO) can find them by browsing
-    // the ParameterSet folder.
+    // Add HasComponent references from ParameterSet to all process variables
+    // per the DI canonical pattern (ns_di.c uses HasComponent i=47 for
+    // <ParameterIdentifier> children of ParameterSet i=5002). AIO/Akri DI
+    // discovery filters ParameterSet children by HasComponent and uses each
+    // child Variable as an asset datapoint.
     for variable_name in &process_variable_names {
         as_ref.insert_reference(
             &parameter_set_id,
             &NodeId::new(ns, *variable_name),
-            ReferenceTypeId::Organizes,
+            ReferenceTypeId::HasComponent,
         );
     }
 
@@ -1217,7 +1219,7 @@ mod tests {
 
     #[test]
     fn parameter_set_is_component_of_device() {
-        let (address_space, ns, di_ns) = setup();
+        let (address_space, ns, _di_ns) = setup();
         let device_id = NodeId::new(ns, "SurfaceTechnologyDevice");
         let param_set_id = NodeId::new(ns, "DI_ParameterSet");
         assert!(
@@ -1246,11 +1248,13 @@ mod tests {
     fn parameter_set_organizes_process_variables() {
         let (address_space, ns, _di_ns) = setup();
         let param_set_id = NodeId::new(ns, "DI_ParameterSet");
+        // Per DI canonical pattern (see opcua-large-c2/nodesets-generated/ns_di.c):
+        // Parameters are HasComponent of ParameterSet, NOT Organizes.
         for var_name in &["CurrentTemperature", "CurrentPressure", "CurrentFlowRate"] {
             let var_id = NodeId::new(ns, *var_name);
             assert!(
-                address_space.has_reference(&param_set_id, &var_id, ReferenceTypeId::Organizes),
-                "ParameterSet must organize variable '{}'",
+                address_space.has_reference(&param_set_id, &var_id, ReferenceTypeId::HasComponent),
+                "ParameterSet must have variable '{}' as HasComponent (DI canonical pattern)",
                 var_name
             );
         }
@@ -1741,6 +1745,141 @@ mod tests {
         } else {
             panic!("DI_DeviceHealth is not a variable node");
         }
+    }
+
+    /// Diagnostic test: simulate AIO Commander's depth-limited DFS (no global
+    /// dedup). Verify total visits are bounded and that variables are reached.
+    #[test]
+    fn aio_style_depth_limited_browse_terminates_with_variables() {
+        use std::collections::HashMap;
+        let (address_space, _ns, _di_ns) = setup();
+
+        let device_set_id = NodeId::new(_di_ns, 5001u32);
+        const MAX_DEPTH: usize = 16;
+        const MAX_TOTAL_VISITS: usize = 5000;
+
+        // Iterative DFS; ancestor-set on stack (no global visited)
+        let mut stack: Vec<(NodeId, usize, std::collections::HashSet<NodeId>)> = Vec::new();
+        let mut ancestors = std::collections::HashSet::new();
+        ancestors.insert(device_set_id.clone());
+        stack.push((device_set_id, 0, ancestors));
+
+        let mut total_visits = 0usize;
+        let mut variables_seen = 0usize;
+        let mut visits_per_depth: HashMap<usize, usize> = HashMap::new();
+
+        while let Some((node, depth, anc)) = stack.pop() {
+            total_visits += 1;
+            *visits_per_depth.entry(depth).or_insert(0) += 1;
+            if total_visits > MAX_TOTAL_VISITS {
+                panic!(
+                    "Browse exploded: >{} visits. Per-depth: {:?}",
+                    MAX_TOTAL_VISITS, visits_per_depth
+                );
+            }
+            if let Some(n) = address_space.find_node(&node) {
+                if matches!(n, opcua::server::prelude::NodeType::Variable(_)) {
+                    variables_seen += 1;
+                }
+            }
+            if depth >= MAX_DEPTH {
+                continue;
+            }
+            let (refs, _) = address_space.find_references_by_direction(
+                &node,
+                BrowseDirection::Forward,
+                Some((ReferenceTypeId::HierarchicalReferences, true)),
+            );
+            for r in &refs {
+                if anc.contains(&r.target_node) {
+                    continue;
+                }
+                let mut new_anc = anc.clone();
+                new_anc.insert(r.target_node.clone());
+                stack.push((r.target_node.clone(), depth + 1, new_anc));
+            }
+        }
+
+        assert!(
+            variables_seen > 0,
+            "AIO-style browse from DeviceSet found 0 variables. Total visits={}, per-depth={:?}",
+            total_visits, visits_per_depth
+        );
+        assert!(
+            total_visits < 1000,
+            "Suspicious browse explosion: {} visits. Per-depth: {:?}",
+            total_visits, visits_per_depth
+        );
+    }
+
+    /// Diagnostic: count BFS visits if a client walks BrowseDirection::Both with
+    /// HierarchicalReferences subtypes WITHOUT global dedup. ANY tree exhibits
+    /// exponential growth in this scenario (each parent↔child link creates an
+    /// implicit oscillation). Real clients (incl. AIO/Akri) must dedup; this
+    /// test simply documents the per-depth growth so we notice if a future
+    /// change makes it dramatically worse than baseline.
+    #[test]
+    fn detect_undirected_browse_explosion() {
+        let (address_space, _ns, di_ns) = setup();
+        let start = NodeId::new(di_ns, 5001u32); // DeviceSet
+        const MAX_DEPTH: usize = 4;
+        let mut frontier: Vec<NodeId> = vec![start];
+        let mut total: usize = 0;
+        let mut per_depth: Vec<usize> = Vec::new();
+        for _ in 0..=MAX_DEPTH {
+            per_depth.push(frontier.len());
+            total += frontier.len();
+            let mut next: Vec<NodeId> = Vec::new();
+            for node in &frontier {
+                let (refs, _) = address_space.find_references_by_direction(
+                    node,
+                    BrowseDirection::Both,
+                    Some((ReferenceTypeId::HierarchicalReferences, true)),
+                );
+                for r in &refs {
+                    next.push(r.target_node.clone());
+                }
+            }
+            frontier = next;
+        }
+        eprintln!(
+            "Undirected per-depth visit counts (start=DeviceSet, depth 0..{}): {:?} total={}",
+            MAX_DEPTH, per_depth, total
+        );
+        // Sanity bound: depth 4 from DeviceSet should remain under ~3000 even
+        // without dedup. If this regresses dramatically, something is amiss.
+        assert!(
+            per_depth[4] < 3000,
+            "Undirected explosion at depth 4 worse than expected: per-depth={:?}",
+            per_depth
+        );
+    }
+
+    #[test]
+    fn parameter_set_contains_telemetry_variables() {
+        // AIO/Akri DI discovery looks for variables under ParameterSet.
+        // An empty ParameterSet means 0 datapoints → 0 discovered assets.
+        let (address_space, ns, _di_ns) = setup();
+        let parameter_set_id = NodeId::new(ns, "DI_ParameterSet");
+        let (refs, _) = address_space.find_references_by_direction(
+            &parameter_set_id,
+            BrowseDirection::Forward,
+            Some((ReferenceTypeId::HasComponent, true)),
+        );
+        let var_count = refs
+            .iter()
+            .filter(|r| {
+                matches!(
+                    address_space.find_node(&r.target_node),
+                    Some(opcua::server::prelude::NodeType::Variable(_))
+                )
+            })
+            .count();
+        assert!(
+            var_count > 0,
+            "ParameterSet must expose at least one Variable as HasComponent for AIO discovery, found {}",
+            var_count
+        );
     }
 
     #[test]
