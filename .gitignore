@@ -31,3 +31,6 @@ target
 # Node.js (test-client)
 test-client/node_modules/
 test-client/dist/
+
+**/node-modules/
+**/dist/
