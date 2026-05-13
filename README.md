@@ -57,3 +57,16 @@ opc.tcp://localhost:5000
 ## License
 
 MIT
+
+## Web Frontend
+
+A React-based web frontend provides real-time OPC UA visualization via a WebSocket bridge.
+
+### Quick Start
+
+1. Start the OPC UA simulator: `cargo run --release`
+2. Start the WebSocket bridge: `cd test-client && npm run dev:server`
+3. Start the frontend dev server: `cd test-client/frontend && npm run dev`
+4. Open http://localhost:5173
+
+See [test-client/frontend/README.md](test-client/frontend/README.md) for details.
