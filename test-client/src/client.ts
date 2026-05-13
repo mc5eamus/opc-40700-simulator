@@ -13,6 +13,7 @@ import {
   ReferenceDescription,
   StatusCodes,
   BrowseDirection,
+  NodeClass,
 } from "node-opcua";
 
 const ENDPOINT_URL = "opc.tcp://localhost:5000";
@@ -142,16 +143,44 @@ async function browseTree(
 async function browseAddressSpace(session: ClientSession): Promise<void> {
   header("PHASE 2: Browse Address Space");
 
-  // Find the SurfaceTechnologySystem folder under Objects
+  // SurfaceTechnologySystem is a component of SurfaceTechnologyDevice (under DeviceSet),
+  // not directly under Objects.  Browse the device instance to find it.
   const objectsFolder = "ns=0;i=85"; // Objects folder
   const browseResult = await session.browse(objectsFolder as BrowseDescriptionLike);
 
-  const stFolder = browseResult.references?.find(
+  // First find DeviceSet under Objects
+  const deviceSetRef = browseResult.references?.find(
+    (r) => r.browseName.name === "DeviceSet"
+  );
+
+  if (!deviceSetRef) {
+    console.log("  ⚠ DeviceSet folder not found under Objects!");
+    return;
+  }
+
+  // Browse DeviceSet to find the device instance
+  const deviceSetBrowse = await session.browse(
+    deviceSetRef.nodeId.toString() as BrowseDescriptionLike
+  );
+  const deviceRef = deviceSetBrowse.references?.find(
+    (r) => r.browseName.name === "SurfaceTechnologyDevice"
+  );
+
+  if (!deviceRef) {
+    console.log("  ⚠ SurfaceTechnologyDevice not found under DeviceSet!");
+    return;
+  }
+
+  // Browse device instance to find SurfaceTechnologySystem
+  const deviceBrowse = await session.browse(
+    deviceRef.nodeId.toString() as BrowseDescriptionLike
+  );
+  const stFolder = deviceBrowse.references?.find(
     (r) => r.browseName.name === "SurfaceTechnologySystem"
   );
 
   if (!stFolder) {
-    console.log("  ⚠ SurfaceTechnologySystem folder not found!");
+    console.log("  ⚠ SurfaceTechnologySystem folder not found under device instance!");
     return;
   }
 
@@ -380,6 +409,174 @@ async function subscribeTelemetry(
   console.log("\n  Subscription terminated.");
 }
 
+// ── Address Space Traversal Test (Issue #19 Test 1) ──────────────────────
+//
+// BFS from Objects folder following forward HierarchicalReferences to verify:
+// - No circular references (max depth < 20)
+// - Reasonable total node count (terminates without hitting depth limit)
+// This focuses on the Objects subtree which is what AIO Commander browses.
+
+async function verifyNoCircularReferences(session: ClientSession): Promise<void> {
+  header("PHASE 5: Verify No Circular References (BFS Traversal)");
+
+  const objectsFolderId = "i=85"; // Objects folder
+  const visited = new Set<string>();
+  const queue: Array<{ nodeId: string; depth: number }> = [
+    { nodeId: objectsFolderId, depth: 0 },
+  ];
+  visited.add(objectsFolderId);
+  let maxDepth = 0;
+  let totalNodes = 0;
+
+  while (queue.length > 0) {
+    const { nodeId, depth } = queue.shift()!;
+    maxDepth = Math.max(maxDepth, depth);
+    totalNodes++;
+
+    // Safety: abort if we've clearly hit a cycle (should never happen)
+    if (depth > 20) {
+      throw new Error(
+        `BFS depth exceeded 20 at node ${nodeId} — likely circular reference. ` +
+          `Visited ${totalNodes} nodes so far.`
+      );
+    }
+
+    const browseResult = await session.browse({
+      nodeId: nodeId,
+      browseDirection: BrowseDirection.Forward,
+      referenceTypeId: "i=33", // HierarchicalReferences
+      includeSubtypes: true,
+      nodeClassMask: 0,
+      resultMask: 63,
+    });
+
+    if (browseResult.references) {
+      for (const ref of browseResult.references) {
+        const childId = ref.nodeId.toString();
+        if (!visited.has(childId)) {
+          visited.add(childId);
+          queue.push({ nodeId: childId, depth: depth + 1 });
+        }
+      }
+    }
+  }
+
+  console.log(`\n  BFS traversal from Objects folder complete:`);
+  console.log(`    Total unique nodes visited: ${totalNodes}`);
+  console.log(`    Maximum depth reached: ${maxDepth}`);
+
+  if (maxDepth >= 20) {
+    throw new Error(
+      `Address space tree too deep: max depth ${maxDepth} (expected < 20). ` +
+        `This indicates circular references in hierarchical direction.`
+    );
+  }
+
+  console.log(`\n  ✓ No circular references detected (max depth ${maxDepth} < 20)`);
+}
+
+// ── End-to-End Discovery Simulation (Issue #19 Test 3) ────────────────────
+//
+// Mimics what AIO Commander does during asset discovery:
+// 1. Verifies DeviceSet is browseable
+// 2. Contains at least 1 device instance
+// 3. Device instances have readable variables (data points)
+
+async function verifyEndToEndDiscovery(
+  session: ClientSession,
+  diNsIndex: number
+): Promise<void> {
+  header("PHASE 6: End-to-End Discovery Simulation");
+
+  // ── Step 1: Browse DeviceSet (i=5001 in DI namespace) ──
+  const deviceSetNodeId = `ns=${diNsIndex};i=5001`;
+  console.log(`\n  Browsing DeviceSet (${deviceSetNodeId}) ...`);
+
+  const deviceSetBrowse = await session.browse({
+    nodeId: deviceSetNodeId,
+    browseDirection: BrowseDirection.Forward,
+    referenceTypeId: "i=33", // HierarchicalReferences
+    includeSubtypes: true,
+    nodeClassMask: 0,
+    resultMask: 63,
+  });
+
+  const deviceInstances = (deviceSetBrowse.references ?? []).filter(
+    (r) => r.nodeClass === NodeClass.Object
+  );
+
+  if (deviceInstances.length === 0) {
+    throw new Error(
+      "DeviceSet contains no device instances — " +
+        "AIO Commander would find 0 assets."
+    );
+  }
+
+  console.log(`  ✓ DeviceSet contains ${deviceInstances.length} device instance(s)`);
+
+  // ── Step 2: For each device instance, verify it has child variables ──
+  for (const device of deviceInstances) {
+    const deviceId = device.nodeId.toString();
+    const deviceName = device.browseName.name ?? device.browseName.toString();
+    console.log(`\n  Device: ${deviceName}  (${deviceId})`);
+
+    // Browse all hierarchical children recursively (up to 3 levels)
+    let variableCount = 0;
+    const deviceQueue: string[] = [deviceId];
+    const deviceVisited = new Set<string>([deviceId]);
+    let level = 0;
+
+    while (deviceQueue.length > 0 && level < 3) {
+      const nextLevel: string[] = [];
+      for (const nid of deviceQueue) {
+        const childBrowse = await session.browse({
+          nodeId: nid,
+          browseDirection: BrowseDirection.Forward,
+          referenceTypeId: "i=33", // HierarchicalReferences
+          includeSubtypes: true,
+          nodeClassMask: 0,
+          resultMask: 63,
+        });
+
+        if (childBrowse.references) {
+          for (const ref of childBrowse.references) {
+            const childId = ref.nodeId.toString();
+            if (ref.nodeClass === NodeClass.Variable) {
+              variableCount++;
+            }
+            if (
+              ref.nodeClass === NodeClass.Object &&
+              !deviceVisited.has(childId)
+            ) {
+              deviceVisited.add(childId);
+              nextLevel.push(childId);
+            }
+          }
+        }
+      }
+      deviceQueue.length = 0;
+      deviceQueue.push(...nextLevel);
+      level++;
+    }
+
+    console.log(`    Variables found: ${variableCount}`);
+
+    if (variableCount === 0) {
+      throw new Error(
+        `Device instance '${deviceName}' has no variables — ` +
+          `AIO Commander would not discover any data points for this asset.`
+      );
+    }
+
+    console.log(`  ✓ ${deviceName} has ${variableCount} variable(s) (data points)`);
+  }
+
+  console.log(
+    `\n  ✓ End-to-end discovery simulation passed: ` +
+      `${deviceInstances.length} device(s) with variables`
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
@@ -445,6 +642,14 @@ async function main() {
 
   // ── Phase 4: Subscribe (10 seconds) ──
   await subscribeTelemetry(session, nsIndex, 10_000);
+
+  // ── Phase 5: Circular Reference Detection ──
+  await verifyNoCircularReferences(session);
+
+  // ── Phase 6: End-to-End Discovery Simulation ──
+  if (diNsIndex >= 0) {
+    await verifyEndToEndDiscovery(session, diNsIndex);
+  }
 
   // ── Cleanup ──
   header("Cleanup");
