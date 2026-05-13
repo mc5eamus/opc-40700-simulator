@@ -1,0 +1,150 @@
+# opcua-large-c2 -- native open62541 simulator hosting MCC11420/50/70/90.
+#
+# Each pod runs one MCC variant on its own port. The native C server
+# loads ~7K-50K nodes from pre-compiled nodeset C source in <1 second
+# and serves the AIO commander discovery browse far below the
+# hardcoded ~5 minute budget.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opcua-large-c2-mcc11420
+  namespace: azure-iot-operations
+  labels: { app: opcua-large-c2-mcc11420 }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: opcua-large-c2-mcc11420 } }
+  template:
+    metadata: { labels: { app: opcua-large-c2-mcc11420 } }
+    spec:
+      containers:
+        - name: opcua-large-c2-sim
+          image: opcua-large-c2:latest
+          imagePullPolicy: Never
+          ports: [{ containerPort: 4840, name: opc-tcp }]
+          env:
+            - { name: MCC_VARIANT, value: "MCC11420" }
+          resources:
+            requests: { cpu: "200m", memory: 256Mi }
+            limits:   { cpu: "1",    memory: 1Gi }
+          startupProbe:   { tcpSocket: { port: 4840 }, initialDelaySeconds: 1, periodSeconds: 2, failureThreshold: 30 }
+          readinessProbe: { tcpSocket: { port: 4840 }, periodSeconds: 10 }
+          livenessProbe:  { tcpSocket: { port: 4840 }, periodSeconds: 30 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opcua-large-mcc11420
+  namespace: azure-iot-operations
+spec:
+  selector: { app: opcua-large-c2-mcc11420 }
+  ports: [{ name: opc-tcp, port: 4840, targetPort: 4840 }]
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opcua-large-c2-mcc11450
+  namespace: azure-iot-operations
+  labels: { app: opcua-large-c2-mcc11450 }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: opcua-large-c2-mcc11450 } }
+  template:
+    metadata: { labels: { app: opcua-large-c2-mcc11450 } }
+    spec:
+      containers:
+        - name: opcua-large-c2-sim
+          image: opcua-large-c2:latest
+          imagePullPolicy: Never
+          ports: [{ containerPort: 4841, name: opc-tcp }]
+          env:
+            - { name: MCC_VARIANT, value: "MCC11450" }
+          resources:
+            requests: { cpu: "200m", memory: 256Mi }
+            limits:   { cpu: "1",    memory: 1Gi }
+          startupProbe:   { tcpSocket: { port: 4841 }, initialDelaySeconds: 1, periodSeconds: 2, failureThreshold: 30 }
+          readinessProbe: { tcpSocket: { port: 4841 }, periodSeconds: 10 }
+          livenessProbe:  { tcpSocket: { port: 4841 }, periodSeconds: 30 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opcua-large-mcc11450
+  namespace: azure-iot-operations
+spec:
+  selector: { app: opcua-large-c2-mcc11450 }
+  ports: [{ name: opc-tcp, port: 4841, targetPort: 4841 }]
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opcua-large-c2-mcc11470
+  namespace: azure-iot-operations
+  labels: { app: opcua-large-c2-mcc11470 }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: opcua-large-c2-mcc11470 } }
+  template:
+    metadata: { labels: { app: opcua-large-c2-mcc11470 } }
+    spec:
+      containers:
+        - name: opcua-large-c2-sim
+          image: opcua-large-c2:latest
+          imagePullPolicy: Never
+          ports: [{ containerPort: 4842, name: opc-tcp }]
+          env:
+            - { name: MCC_VARIANT, value: "MCC11470" }
+          resources:
+            requests: { cpu: "200m", memory: 512Mi }
+            limits:   { cpu: "1",    memory: 1500Mi }
+          startupProbe:   { tcpSocket: { port: 4842 }, initialDelaySeconds: 1, periodSeconds: 2, failureThreshold: 30 }
+          readinessProbe: { tcpSocket: { port: 4842 }, periodSeconds: 10 }
+          livenessProbe:  { tcpSocket: { port: 4842 }, periodSeconds: 30 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opcua-large-mcc11470
+  namespace: azure-iot-operations
+spec:
+  selector: { app: opcua-large-c2-mcc11470 }
+  ports: [{ name: opc-tcp, port: 4842, targetPort: 4842 }]
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opcua-large-c2-mcc11490
+  namespace: azure-iot-operations
+  labels: { app: opcua-large-c2-mcc11490 }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: opcua-large-c2-mcc11490 } }
+  template:
+    metadata: { labels: { app: opcua-large-c2-mcc11490 } }
+    spec:
+      containers:
+        - name: opcua-large-c2-sim
+          image: opcua-large-c2:latest
+          imagePullPolicy: Never
+          ports: [{ containerPort: 4843, name: opc-tcp }]
+          env:
+            - { name: MCC_VARIANT, value: "MCC11490" }
+          resources:
+            requests: { cpu: "200m", memory: 256Mi }
+            limits:   { cpu: "1",    memory: 1Gi }
+          startupProbe:   { tcpSocket: { port: 4843 }, initialDelaySeconds: 1, periodSeconds: 2, failureThreshold: 30 }
+          readinessProbe: { tcpSocket: { port: 4843 }, periodSeconds: 10 }
+          livenessProbe:  { tcpSocket: { port: 4843 }, periodSeconds: 30 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opcua-large-mcc11490
+  namespace: azure-iot-operations
+spec:
+  selector: { app: opcua-large-c2-mcc11490 }
+  ports: [{ name: opc-tcp, port: 4843, targetPort: 4843 }]
+  type: ClusterIP
