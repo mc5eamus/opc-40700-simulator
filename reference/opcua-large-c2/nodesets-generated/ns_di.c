@@ -557,11 +557,11 @@ arrayDimensions[0] = 5;
 attr.arrayDimensions = &arrayDimensions[0];
 attr.dataType = UA_NODEID_NUMERIC(ns[0], 21LU);
 UA_LocalizedText variablenode_ns_1_i_6450_variant_DataContents[5];
-variablenode_ns_1_i_6450_variant_DataContents[0] = UA_LOCALIZEDTEXT("", "");
-variablenode_ns_1_i_6450_variant_DataContents[1] = UA_LOCALIZEDTEXT("", "");
-variablenode_ns_1_i_6450_variant_DataContents[2] = UA_LOCALIZEDTEXT("", "");
-variablenode_ns_1_i_6450_variant_DataContents[3] = UA_LOCALIZEDTEXT("", "");
-variablenode_ns_1_i_6450_variant_DataContents[4] = UA_LOCALIZEDTEXT("", "");
+variablenode_ns_1_i_6450_variant_DataContents[0] = UA_LOCALIZEDTEXT("", "NORMAL");
+variablenode_ns_1_i_6450_variant_DataContents[1] = UA_LOCALIZEDTEXT("", "FAILURE");
+variablenode_ns_1_i_6450_variant_DataContents[2] = UA_LOCALIZEDTEXT("", "CHECK_FUNCTION");
+variablenode_ns_1_i_6450_variant_DataContents[3] = UA_LOCALIZEDTEXT("", "OFF_SPEC");
+variablenode_ns_1_i_6450_variant_DataContents[4] = UA_LOCALIZEDTEXT("", "MAINTENANCE_REQUIRED");
 UA_Variant_setArray(&attr.value, &variablenode_ns_1_i_6450_variant_DataContents, (UA_Int32) 5, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 attr.displayName = UA_LOCALIZEDTEXT("", "EnumStrings");
 retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_VARIABLE,
