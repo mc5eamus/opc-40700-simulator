@@ -156,6 +156,33 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
         Some(&[(&enumeration_dt_id, &has_subtype_id, ReferenceDirection::Inverse)]),
     );
 
+    // EnumStrings property on DeviceHealthEnumeration (DI ns, i=6450).
+    // Per DI NodeSet2.xml: 5 LocalizedText values, child via HasProperty.
+    // This makes DeviceHealth readable as human-readable labels rather than
+    // bare integers — matching both the Python packer and the C2 reference.
+    let dh_enum_strings_id = NodeId::new(di_ns, 6450u32);
+    let enum_strings_value = Variant::from((
+        VariantTypeId::LocalizedText,
+        vec![
+            Variant::from(LocalizedText::new("", "NORMAL")),
+            Variant::from(LocalizedText::new("", "FAILURE")),
+            Variant::from(LocalizedText::new("", "CHECK_FUNCTION")),
+            Variant::from(LocalizedText::new("", "OFF_SPEC")),
+            Variant::from(LocalizedText::new("", "MAINTENANCE_REQUIRED")),
+        ],
+    ));
+    VariableBuilder::new(
+        &dh_enum_strings_id,
+        QualifiedName::new(0, "EnumStrings"),
+        "EnumStrings",
+    )
+    .data_type(DataTypeId::LocalizedText)
+    .value_rank(1)
+    .value(enum_strings_value)
+    .property_of(dh_enum_type_id.clone())
+    .has_type_definition(VariableTypeId::PropertyType)
+    .insert(as_ref);
+
     // DeviceType (DI ns, i=1002) - subtype of TopologyElementType.
     // Abstract per DI spec — only concrete subtypes are instantiated.
     let device_type_id = NodeId::new(di_ns, 1002u32);
