@@ -183,15 +183,37 @@ fn populate_address_space(as_ref: &mut AddressSpace) -> (u16, u16) {
     .has_type_definition(VariableTypeId::PropertyType)
     .insert(as_ref);
 
-    // DeviceType (DI ns, i=1002) - subtype of TopologyElementType.
+    // ComponentType (DI ns, i=15063) - subtype of TopologyElementType.
+    // Added in DI 1.04. AIO's FetchSubTypesAsync starts its type-hierarchy walk
+    // by calling ReadNode on this exact node ID (DI ns, i=15063).  If the node is
+    // absent the server returns BadNodeIdUnknown — or in some timing windows the
+    // Rust opcua crate drops the secure channel entirely, producing BadNotConnected
+    // on the client side.  The node must therefore be present and readable.
+    let component_type_id = NodeId::new(di_ns, 15063u32);
+    ObjectTypeBuilder::new(
+        &component_type_id,
+        QualifiedName::new(di_ns, "ComponentType"),
+        "ComponentType",
+    )
+    .subtype_of(topology_element_type_id.clone())
+    .is_abstract(true)
+    .insert(as_ref);
+
+    // DeviceType (DI ns, i=1002) - subtype of ComponentType (per DI 1.04 spec).
     // Abstract per DI spec — only concrete subtypes are instantiated.
+    //
+    // Per DI NodeSet2 v1.04, DeviceType's HasSubtype inverse reference points to
+    // ComponentType (i=15063), NOT directly to TopologyElementType.  Setting it
+    // correctly ensures that AIO's walk of ComponentType subtypes reaches DeviceType
+    // and then OPC40700DeviceType, which in turn leads to the SurfaceTechnologyDevice
+    // instance being discovered in DeviceSet.
     let device_type_id = NodeId::new(di_ns, 1002u32);
     ObjectTypeBuilder::new(
         &device_type_id,
         QualifiedName::new(di_ns, "DeviceType"),
         "DeviceType",
     )
-    .subtype_of(topology_element_type_id.clone())
+    .subtype_of(component_type_id.clone())
     .is_abstract(true)
     .insert(as_ref);
 
@@ -1484,19 +1506,49 @@ mod tests {
     }
 
     #[test]
-    fn topology_element_type_has_subtype_device_type() {
+    fn component_type_exists_at_di_i15063() {
+        let (address_space, _ns, di_ns) = setup();
+        let node_id = NodeId::new(di_ns, 15063u32);
+        assert!(
+            address_space.find_node(&node_id).is_some(),
+            "ComponentType must exist at DI ns index {}, i=15063 — AIO FetchSubTypesAsync \
+             calls ReadNode on this exact ID as its first step in the type-hierarchy walk",
+            di_ns
+        );
+    }
+
+    #[test]
+    fn topology_element_type_has_subtype_component_type() {
         let (address_space, _ns, di_ns) = setup();
         let topology_element_type_id = NodeId::new(di_ns, 1001u32);
-        let device_type_id = NodeId::new(di_ns, 1002u32);
+        let component_type_id = NodeId::new(di_ns, 15063u32);
         assert!(
             address_space.has_reference(
                 &topology_element_type_id,
+                &component_type_id,
+                ReferenceTypeId::HasSubtype,
+            ),
+            "TopologyElementType (DI i=1001) must have a forward HasSubtype reference to \
+             ComponentType (DI i=15063) per DI spec v1.04",
+        );
+    }
+
+    #[test]
+    fn component_type_has_subtype_device_type() {
+        // Per DI NodeSet2 v1.04, DeviceType (i=1002) is a subtype of ComponentType (i=15063),
+        // NOT a direct subtype of TopologyElementType.  AIO's FetchSubTypesAsync walks
+        // ComponentType subtypes to discover DeviceType and then its concrete children.
+        let (address_space, _ns, di_ns) = setup();
+        let component_type_id = NodeId::new(di_ns, 15063u32);
+        let device_type_id = NodeId::new(di_ns, 1002u32);
+        assert!(
+            address_space.has_reference(
+                &component_type_id,
                 &device_type_id,
                 ReferenceTypeId::HasSubtype,
             ),
-            "TopologyElementType must have a forward HasSubtype reference to DeviceType \
-             (DI ns={}, i=1002)",
-            di_ns
+            "ComponentType (DI i=15063) must have a forward HasSubtype reference to \
+             DeviceType (DI i=1002) per DI spec v1.04",
         );
     }
 
